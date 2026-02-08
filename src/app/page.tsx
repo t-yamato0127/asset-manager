@@ -274,7 +274,7 @@ export default function Dashboard() {
                     borderRadius: '8px',
                     color: '#f8fafc',
                   }}
-                  formatter={(value: number) => [formatCurrency(value), '評価額']}
+                  formatter={(value: number | string | (number | string)[]) => [formatCurrency(Number(value)), '評価額']}
                 />
                 <Line
                   type="monotone"
