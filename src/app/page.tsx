@@ -140,11 +140,43 @@ export default function Dashboard() {
   const [usdJpyRate] = useState(150.5);
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    async function fetchData() {
+      try {
+        const response = await fetch('/api/holdings');
+        const data = await response.json();
+
+        if (data.holdings && data.holdings.length > 0) {
+          // Transform API data to match our holding type
+          const transformedHoldings = data.holdings.map((h: {
+            id: string;
+            symbol: string;
+            name: string;
+            category: string;
+            quantity: number;
+            avgCost: number;
+            currency: string;
+          }) => ({
+            id: h.id,
+            symbol: h.symbol,
+            name: h.name,
+            category: h.category as 'domestic_stock' | 'us_stock' | 'mutual_fund',
+            currentPrice: h.avgCost * 1.15, // Placeholder until price API is integrated
+            previousPrice: h.avgCost * 1.14,
+            quantity: h.quantity,
+            avgCost: h.avgCost,
+            currency: h.currency as 'JPY' | 'USD',
+          }));
+          setHoldings(transformedHoldings);
+        }
+      } catch (error) {
+        console.error('Error fetching holdings:', error);
+        // Keep sample data on error
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
   }, []);
 
   const filteredHoldings = holdings.filter(h => {
