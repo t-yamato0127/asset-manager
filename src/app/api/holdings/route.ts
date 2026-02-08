@@ -1,7 +1,8 @@
 // API route for fetching portfolio data
 import { NextResponse } from 'next/server';
+import { getHoldings } from '@/lib/googleSheets';
 
-// Sample data - in production, this would come from Google Sheets
+// Sample data - fallback if Google Sheets fails
 const sampleHoldings = [
     {
         id: '1',
@@ -14,47 +15,37 @@ const sampleHoldings = [
         accountType: 'specific',
         createdAt: '2024-01-15',
     },
-    {
-        id: '2',
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        category: 'us_stock',
-        quantity: 50,
-        avgCost: 150,
-        currency: 'USD',
-        accountType: 'nisa',
-        createdAt: '2024-02-01',
-    },
-    {
-        id: '3',
-        symbol: '9984.T',
-        name: 'ソフトバンクグループ',
-        category: 'domestic_stock',
-        quantity: 200,
-        avgCost: 6500,
-        currency: 'JPY',
-        accountType: 'specific',
-        createdAt: '2024-03-10',
-    },
 ];
 
 export async function GET() {
     try {
-        // In production:
-        // import { getHoldings, getLatestPrices, getLatestExchangeRate } from '@/lib/googleSheets';
-        // const holdings = await getHoldings();
-        // const prices = await getLatestPrices();
-        // const exchangeRate = await getLatestExchangeRate();
+        // Try to fetch from Google Sheets
+        const holdings = await getHoldings();
 
+        // If we have data from Google Sheets, use it
+        if (holdings && holdings.length > 0) {
+            return NextResponse.json({
+                holdings,
+                source: 'google_sheets',
+                updatedAt: new Date().toISOString(),
+            });
+        }
+
+        // Fallback to sample data if no data in sheets
         return NextResponse.json({
             holdings: sampleHoldings,
+            source: 'sample',
             updatedAt: new Date().toISOString(),
         });
     } catch (error) {
         console.error('Error fetching holdings:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch holdings' },
-            { status: 500 }
-        );
+
+        // Return sample data on error
+        return NextResponse.json({
+            holdings: sampleHoldings,
+            source: 'sample_fallback',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            updatedAt: new Date().toISOString(),
+        });
     }
 }
