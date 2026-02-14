@@ -96,21 +96,37 @@ export async function appendToSheet(
 }
 
 // Holdings specific functions
+// Spreadsheet columns: symbol(A), name(B), category(C), quantity(D), averageCost(E), currency(F)
 export async function getHoldings() {
     const data = await readSheet(SHEETS.HOLDINGS);
     if (data.length <= 1) return []; // No data or only header
 
-    const [, ...rows] = data; // Skip header
-    return rows.map(row => ({
-        id: row[0] || '',
-        symbol: row[1] || '',
-        name: row[2] || '',
-        category: row[3] as 'domestic_stock' | 'us_stock' | 'mutual_fund',
-        quantity: parseFloat(row[4]) || 0,
-        avgCost: parseFloat(row[5]) || 0,
-        currency: (row[6] || 'JPY') as 'JPY' | 'USD',
-        accountType: (row[7] || 'specific') as 'nisa' | 'specific' | 'general',
-        createdAt: row[8] || new Date().toISOString(),
+    const [header, ...rows] = data; // Skip header
+
+    // Dynamic column mapping based on header names
+    const colIndex = (name: string) => {
+        const idx = header.findIndex(h => h.toLowerCase().trim() === name.toLowerCase());
+        return idx >= 0 ? idx : -1;
+    };
+
+    const symIdx = colIndex('symbol');
+    const nameIdx = colIndex('name');
+    const catIdx = colIndex('category');
+    const qtyIdx = colIndex('quantity');
+    const costIdx = colIndex('averagecost') >= 0 ? colIndex('averagecost') : colIndex('avgcost');
+    const curIdx = colIndex('currency');
+    const acctIdx = colIndex('accounttype');
+
+    return rows.map((row, i) => ({
+        id: symIdx >= 0 ? (row[symIdx] || String(i)) : String(i),
+        symbol: symIdx >= 0 ? (row[symIdx] || '') : '',
+        name: nameIdx >= 0 ? (row[nameIdx] || '') : '',
+        category: (catIdx >= 0 ? row[catIdx] : 'domestic_stock') as 'domestic_stock' | 'us_stock' | 'mutual_fund',
+        quantity: qtyIdx >= 0 ? (parseFloat(row[qtyIdx]) || 0) : 0,
+        avgCost: costIdx >= 0 ? (parseFloat(row[costIdx]) || 0) : 0,
+        currency: (curIdx >= 0 ? (row[curIdx] || 'JPY') : 'JPY') as 'JPY' | 'USD',
+        accountType: (acctIdx >= 0 ? (row[acctIdx] || 'specific') : 'specific') as 'nisa' | 'specific' | 'general',
+        createdAt: new Date().toISOString(),
     }));
 }
 
