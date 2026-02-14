@@ -155,17 +155,30 @@ export default function Dashboard() {
             quantity: number;
             avgCost: number;
             currency: string;
-          }) => ({
-            id: h.id,
-            symbol: h.symbol,
-            name: h.name,
-            category: h.category as 'domestic_stock' | 'us_stock' | 'mutual_fund',
-            currentPrice: h.avgCost * 1.15, // Placeholder until price API is integrated
-            previousPrice: h.avgCost * 1.14,
-            quantity: h.quantity,
-            avgCost: h.avgCost,
-            currency: h.currency as 'JPY' | 'USD',
-          }));
+            accountType?: string;
+            createdAt?: string;
+          }) => {
+            const currentPrice = h.avgCost * 1.15; // Placeholder until price API is integrated
+            const totalValue = currentPrice * h.quantity;
+            const costBasis = h.avgCost * h.quantity;
+            const unrealizedPL = totalValue - costBasis;
+            const unrealizedPLPercent = costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
+            return {
+              id: h.id,
+              symbol: h.symbol,
+              name: h.name,
+              category: h.category as 'domestic_stock' | 'us_stock' | 'mutual_fund',
+              currentPrice,
+              totalValue,
+              unrealizedPL,
+              unrealizedPLPercent,
+              quantity: h.quantity,
+              avgCost: h.avgCost,
+              currency: h.currency as 'JPY' | 'USD',
+              accountType: (h.accountType || 'specific') as 'nisa' | 'specific' | 'general',
+              createdAt: h.createdAt || new Date().toISOString(),
+            };
+          });
           setHoldings(transformedHoldings);
         }
       } catch (error) {
