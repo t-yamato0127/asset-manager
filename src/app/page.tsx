@@ -137,59 +137,41 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>(SAMPLE_CHART_DATA);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
-  const [usdJpyRate] = useState(150.5);
+  const [usdJpyRate, setUsdJpyRate] = useState(150.5);
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchPortfolio() {
       try {
-        const response = await fetch('/api/holdings');
+        const response = await fetch('/api/portfolio');
         const data = await response.json();
 
         if (data.holdings && data.holdings.length > 0) {
-          // Transform API data to match our holding type
-          const transformedHoldings = data.holdings.map((h: {
-            id: string;
-            symbol: string;
-            name: string;
-            category: string;
-            quantity: number;
-            avgCost: number;
-            currency: string;
-            accountType?: string;
-            createdAt?: string;
-          }) => {
-            const currentPrice = h.avgCost * 1.15; // Placeholder until price API is integrated
-            const totalValue = currentPrice * h.quantity;
-            const costBasis = h.avgCost * h.quantity;
-            const unrealizedPL = totalValue - costBasis;
-            const unrealizedPLPercent = costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
-            return {
-              id: h.id,
-              symbol: h.symbol,
-              name: h.name,
-              category: h.category as 'domestic_stock' | 'us_stock' | 'mutual_fund',
-              currentPrice,
-              totalValue,
-              unrealizedPL,
-              unrealizedPLPercent,
-              quantity: h.quantity,
-              avgCost: h.avgCost,
-              currency: h.currency as 'JPY' | 'USD',
-              accountType: (h.accountType || 'specific') as 'nisa' | 'specific' | 'general',
-              createdAt: h.createdAt || new Date().toISOString(),
-            };
-          });
-          setHoldings(transformedHoldings);
+          // Set enriched holdings with real price data
+          setHoldings(data.holdings);
         }
+
+        if (data.summary) {
+          setSummary(data.summary);
+        }
+
+        if (data.categories && data.categories.length > 0) {
+          setCategories(data.categories);
+        }
+
+        if (data.exchangeRate) {
+          setUsdJpyRate(data.exchangeRate);
+        }
+
+        console.log(`Portfolio loaded: source=${data.source}, priceSource=${data.priceSource}, exchangeRate=${data.exchangeRate}`);
       } catch (error) {
-        console.error('Error fetching holdings:', error);
+        console.error('Error fetching portfolio:', error);
         // Keep sample data on error
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchData();
+    fetchPortfolio();
   }, []);
 
   const filteredHoldings = holdings.filter(h => {
