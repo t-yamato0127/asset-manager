@@ -137,19 +137,21 @@ export async function fetchMutualFundNAV(fundCode: string): Promise<StockQuote |
 
         // Extract NAV (基準価額) from the HTML
         // Yahoo Finance Japan uses specific patterns for displaying fund NAV
-        // Pattern 1: Look for the main price display
-        const priceMatch = html.match(/class="[^"]*StyledNumber[^"]*"[^>]*>([0-9,]+)<\/span>/);
-        // Pattern 2: Alternative price pattern
-        const priceMatch2 = html.match(/<span[^>]*>([0-9,]+)<\/span>\s*円/);
-        // Pattern 3: Look for data in meta tags or structured data
-        const priceMatch3 = html.match(/基準価額[^0-9]*([0-9,]+)\s*円/);
-        // Pattern 4: og:description often contains the price
+        // Pattern 1: Look for nested StyledNumber__value span (primary pattern)
+        const priceMatch = html.match(/class="[^"]*StyledNumber__value[^"]*"[^>]*>([0-9,]+)<\/span>/);
+        // Pattern 2: Look for StyledNumber with nested spans
+        const priceMatch2 = html.match(/class="[^"]*StyledNumber[^"]*"[^>]*>(?:<[^>]*>)*([0-9,]+)<\/span>/);
+        // Pattern 3: Alternative price pattern with 円
+        const priceMatch3 = html.match(/<span[^>]*>([0-9,]+)<\/span>\s*円/);
+        // Pattern 4: Look for data in meta tags or structured data
+        const priceMatch4 = html.match(/基準価額[^0-9]*([0-9,]+)\s*円/);
+        // Pattern 5: og:description often contains the price
         const ogMatch = html.match(/content="[^"]*基準価額\s*([0-9,]+)/);
-        // Pattern 5: JSON-LD or data attributes
+        // Pattern 6: JSON-LD or data attributes
         const dataMatch = html.match(/data-(?:price|value)="([0-9,]+)"/);
 
         let price = 0;
-        for (const match of [priceMatch, priceMatch2, priceMatch3, ogMatch, dataMatch]) {
+        for (const match of [priceMatch, priceMatch2, priceMatch3, priceMatch4, ogMatch, dataMatch]) {
             if (match && match[1]) {
                 const extracted = parseFloat(match[1].replace(/,/g, ''));
                 if (extracted > 0) {

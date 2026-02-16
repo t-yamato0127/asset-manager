@@ -127,7 +127,7 @@ export async function GET() {
                     if (fundCode) {
                         try {
                             const navData = await fetchMutualFundNAV(fundCode);
-                            return { symbol: fund.symbol, ...navData };
+                            return { ...navData, symbol: fund.symbol };
                         } catch (e) {
                             console.error(`Failed to fetch NAV for ${fund.symbol}:`, e);
                             return null;
@@ -245,6 +245,7 @@ export async function GET() {
 
         return NextResponse.json({
             holdings: holdingsWithPrices,
+            transactions,
             summary,
             categories,
             exchangeRate: usdJpyRate,
