@@ -373,6 +373,7 @@ export default function Dashboard() {
                 <th>銘柄</th>
                 <th>証券会社</th>
                 <th>現在値</th>
+                <th>取得単価</th>
                 <th>保有数</th>
                 <th>評価額</th>
                 <th>損益</th>
@@ -394,12 +395,21 @@ export default function Dashboard() {
                   <td className={styles.priceCell}>
                     {formatCurrency(holding.currentPrice, holding.currency)}
                   </td>
+                  <td className={styles.priceCell}>
+                    {formatCurrency(holding.avgCost, holding.currency)}
+                  </td>
                   <td>
                     {holding.quantity.toLocaleString()}
                     {holding.category === 'mutual_fund' ? '口' : '株'}
                   </td>
                   <td className={styles.priceCell}>
-                    {formatCurrency(holding.totalValue, holding.currency)}
+                    <div>{formatCurrency(holding.totalValue, holding.currency)}</div>
+                    <div className={`${styles.dayChangeTag} ${(holding.dayChange || 0) >= 0 ? styles.positive : styles.negative}`}>
+                      {(holding.dayChange || 0) >= 0 ? '+' : ''}{formatCurrency(Math.abs(holding.dayChange || 0), holding.currency)}
+                      <span className={styles.dayChangePercent}>
+                        ({(holding.dayChangePercent || 0) >= 0 ? '+' : ''}{(holding.dayChangePercent || 0).toFixed(2)}%)
+                      </span>
+                    </div>
                   </td>
                   <td className={`${styles.changeCell} ${holding.unrealizedPL >= 0 ? styles.positive : styles.negative}`}>
                     {formatChange(holding.unrealizedPL, holding.currency)}

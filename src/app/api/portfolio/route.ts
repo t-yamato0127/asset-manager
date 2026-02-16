@@ -213,14 +213,22 @@ export async function GET() {
         // 8. Build enriched holdings for frontend
         const holdingsWithPrices = enrichedHoldings.map(h => {
             const priceData = prices.get(h.symbol);
+            const currentPrice = priceData?.price || h.avgCost;
+            const prevClose = previousCloseMap.get(h.symbol) || currentPrice;
+            const dayChange = (currentPrice - prevClose) * h.quantity;
+            const dayChangePercent = prevClose > 0
+                ? ((currentPrice - prevClose) / prevClose) * 100
+                : 0;
             return {
                 ...h,
-                currentPrice: priceData?.price || h.avgCost,
-                totalValue: (priceData?.price || h.avgCost) * h.quantity,
-                unrealizedPL: ((priceData?.price || h.avgCost) - h.avgCost) * h.quantity,
+                currentPrice,
+                totalValue: currentPrice * h.quantity,
+                unrealizedPL: (currentPrice - h.avgCost) * h.quantity,
                 unrealizedPLPercent: h.avgCost > 0
-                    ? (((priceData?.price || h.avgCost) - h.avgCost) / h.avgCost) * 100
+                    ? ((currentPrice - h.avgCost) / h.avgCost) * 100
                     : 0,
+                dayChange,
+                dayChangePercent,
             };
         });
 

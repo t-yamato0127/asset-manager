@@ -27,6 +27,8 @@ export interface Holding {
     currency: Currency;
     accountType: AccountType;
     broker?: string;  // 証券会社 (e.g., 'みずほ銀行', 'SBI証券')
+    dayChange?: number;  // 前日比（金額）
+    dayChangePercent?: number;  // 前日比（%）
     createdAt: string;
     // Calculated fields (populated at runtime)
     currentPrice?: number;
