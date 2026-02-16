@@ -1,6 +1,6 @@
 // Unified portfolio API - combines holdings, real-time prices, exchange rates, and calculations
 import { NextResponse } from 'next/server';
-import { getHoldings, getLatestPrices, getPriceHistory } from '@/lib/googleSheets';
+import { getHoldings, getTransactions, getLatestPrices } from '@/lib/googleSheets';
 import { fetchMultipleStockPrices, fetchMutualFundNAV } from '@/lib/stockApi';
 import { fetchUsdJpyRate } from '@/lib/exchangeRate';
 import {
@@ -107,7 +107,7 @@ export async function GET() {
                         symbols.push(h.symbol);
                         uniqueFundCodes.set(fundCode, symbols);
                     } else {
-                        console.warn(`No fund code mapping for symbol: ${h.symbol}`);
+                        console.warn(`No fund code mapping for symbol: ${h.symbol} `);
                     }
                 }
 
@@ -125,10 +125,10 @@ export async function GET() {
                                 });
                                 previousCloseMap.set(sym, navData.previousClose);
                             }
-                            console.log(`Fund ${fundCode}: NAV=${navData.price} -> symbols: ${holdingSymbols.join(', ')}`);
+                            console.log(`Fund ${fundCode}: NAV = ${navData.price} -> symbols: ${holdingSymbols.join(', ')} `);
                         }
                     } catch (e) {
-                        console.error(`Failed to fetch fund NAV for ${fundCode}:`, e);
+                        console.error(`Failed to fetch fund NAV for ${fundCode}: `, e);
                     }
                 }
             }
@@ -142,7 +142,7 @@ export async function GET() {
             for (const h of holdings) {
                 if (!prices.has(h.symbol)) {
                     prices.set(h.symbol, { price: h.avgCost, currency: h.currency });
-                    console.warn(`No price for ${h.symbol}, using avgCost=${h.avgCost}`);
+                    console.warn(`No price for ${h.symbol}, using avgCost = ${h.avgCost} `);
                 }
             }
         } catch (priceError) {

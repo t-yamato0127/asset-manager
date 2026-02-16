@@ -247,7 +247,7 @@ export default function Dashboard() {
             </span>
           </p>
           <p className={styles.cardLabel} style={{ marginTop: '0.5rem' }}>
-            2024年
+            {new Date().getFullYear()}年
           </p>
         </div>
 

@@ -132,6 +132,43 @@ export async function getHoldings() {
     }));
 }
 
+
+// Get transactions
+export async function getTransactions() {
+    const data = await readSheet(SHEETS.TRANSACTIONS);
+    if (data.length <= 1) return [];
+
+    const [header, ...rows] = data;
+
+    const colIndex = (name: string) => {
+        const idx = header.findIndex(h => h.toLowerCase().trim() === name.toLowerCase());
+        return idx >= 0 ? idx : -1;
+    };
+
+    const dateIdx = colIndex('date');
+    const symIdx = colIndex('symbol');
+    const nameIdx = colIndex('name');
+    const typeIdx = colIndex('type');
+    const qtyIdx = colIndex('quantity');
+    const priceIdx = colIndex('price');
+    const feesIdx = colIndex('fees');
+    const plIdx = colIndex('realizedpl');
+    const curIdx = colIndex('currency');
+
+    return rows.map((row, i) => ({
+        id: `tx-${i}`,
+        date: dateIdx >= 0 ? (row[dateIdx] || '') : '',
+        symbol: symIdx >= 0 ? (row[symIdx] || '') : '',
+        name: nameIdx >= 0 ? (row[nameIdx] || '') : '',
+        type: (typeIdx >= 0 ? (row[typeIdx] || 'buy') : 'buy') as 'buy' | 'sell',
+        quantity: qtyIdx >= 0 ? (parseFloat(row[qtyIdx]) || 0) : 0,
+        price: priceIdx >= 0 ? (parseFloat(row[priceIdx]) || 0) : 0,
+        fees: feesIdx >= 0 ? (parseFloat(row[feesIdx]) || 0) : 0,
+        realizedPL: plIdx >= 0 ? (parseFloat(row[plIdx]) || 0) : 0,
+        currency: (curIdx >= 0 ? (row[curIdx] || 'JPY') : 'JPY') as 'JPY' | 'USD',
+    }));
+}
+
 // Price history functions
 export async function getPriceHistory(symbol?: string, days: number = 30) {
     const data = await readSheet(SHEETS.PRICE_HISTORY);
@@ -184,33 +221,7 @@ export async function getLatestPrices(): Promise<Map<string, { price: number; cu
     );
 }
 
-// Transactions functions
-export async function getTransactions(year?: number) {
-    const data = await readSheet(SHEETS.TRANSACTIONS);
-    if (data.length <= 1) return [];
 
-    const [, ...rows] = data;
-    let transactions = rows.map(row => ({
-        id: row[0] || '',
-        date: row[1] || '',
-        symbol: row[2] || '',
-        name: row[3] || '',
-        type: row[4] as 'buy' | 'sell',
-        quantity: parseFloat(row[5]) || 0,
-        price: parseFloat(row[6]) || 0,
-        fees: parseFloat(row[7]) || 0,
-        realizedPL: row[8] ? parseFloat(row[8]) : undefined,
-        currency: (row[9] || 'JPY') as 'JPY' | 'USD',
-    }));
-
-    if (year) {
-        transactions = transactions.filter(t =>
-            new Date(t.date).getFullYear() === year
-        );
-    }
-
-    return transactions;
-}
 
 // Exchange rates functions
 export async function getExchangeRates(days: number = 30) {
