@@ -8,7 +8,7 @@ import {
     generateCategorySummary,
     generatePortfolioSummary,
 } from '@/lib/calculations';
-import type { Holding } from '@/types';
+import type { Holding, Transaction } from '@/types';
 
 // Mapping: holding symbol -> Yahoo Finance Japan fund code
 // Mutual funds share the same NAV regardless of distribution/reinvestment course
@@ -33,12 +33,16 @@ function normalizeSymbolForPriceLookup(symbol: string): string {
 
 export async function GET() {
     try {
-        // 1. Fetch holdings from Google Sheets
-        const rawHoldings = await getHoldings();
+        // 1. Fetch holdings and transactions from Google Sheets
+        const [rawHoldings, rawTransactions] = await Promise.all([
+            getHoldings(),
+            getTransactions(),
+        ]);
 
         if (!rawHoldings || rawHoldings.length === 0) {
             return NextResponse.json({
                 holdings: [],
+                transactions: [],
                 summary: null,
                 categories: [],
                 exchangeRate: 150,
@@ -59,6 +63,12 @@ export async function GET() {
             accountType: h.accountType,
             broker: h.broker,
             createdAt: h.createdAt,
+        }));
+
+        // Convert raw transactions to Transaction type (ensure type safety)
+        const transactions: Transaction[] = rawTransactions.map(t => ({
+            ...t,
+            // Ensure any optional fields are handled if needed
         }));
 
         // 2. Fetch real-time prices
@@ -98,39 +108,40 @@ export async function GET() {
 
             // 2b. Fetch mutual fund NAVs via Yahoo Finance Japan scraping
             if (mutualFundHoldings.length > 0) {
-                // Deduplicate fund codes (e.g., ghq-dist and ghq-reinv share 47316169)
-                const uniqueFundCodes = new Map<string, string[]>(); // fundCode -> [symbol1, symbol2, ...]
-                for (const h of mutualFundHoldings) {
-                    const fundCode = FUND_CODE_MAP[h.symbol];
-                    if (fundCode) {
-                        const symbols = uniqueFundCodes.get(fundCode) || [];
-                        symbols.push(h.symbol);
-                        uniqueFundCodes.set(fundCode, symbols);
-                    } else {
-                        console.warn(`No fund code mapping for symbol: ${h.symbol} `);
+                const results = await Promise.all(mutualFundHoldings.map(async (fund) => {
+                    // Check if we have a mapped code for this fund
+                    // Handle duplicate funds (e.g. general/nisa same fund) by unique key? No, logic is per holding.
+                    // But we can optimize to fetch unique codes only?
+                    // For now, let's just fetch per fund. 
+                    // Actually, fetchMutualFundNAV handles caching? No. 
+                    // But duplicates are handled if we use map?
+                    // Let's use basic loop for now.
+                    let fundCode = '';
+                    const match = fund.symbol.match(/^(\d{8}|[0-9A-Z]{8})/);
+                    if (match) {
+                        fundCode = match[1];
+                    } else if (FUND_CODE_MAP[fund.id] || FUND_CODE_MAP[fund.symbol]) {
+                        fundCode = FUND_CODE_MAP[fund.id] || FUND_CODE_MAP[fund.symbol];
                     }
-                }
 
-                // Fetch each unique fund code once
-                const fundCodeEntries = Array.from(uniqueFundCodes.entries());
-                for (const [fundCode, holdingSymbols] of fundCodeEntries) {
-                    try {
-                        const navData = await fetchMutualFundNAV(fundCode);
-                        if (navData) {
-                            // Map the NAV back to each holding symbol using this fund code
-                            for (const sym of holdingSymbols) {
-                                prices.set(sym, {
-                                    price: navData.price,
-                                    currency: 'JPY',
-                                });
-                                previousCloseMap.set(sym, navData.previousClose);
-                            }
-                            console.log(`Fund ${fundCode}: NAV = ${navData.price} -> symbols: ${holdingSymbols.join(', ')} `);
+                    if (fundCode) {
+                        try {
+                            const navData = await fetchMutualFundNAV(fundCode);
+                            return { symbol: fund.symbol, ...navData };
+                        } catch (e) {
+                            console.error(`Failed to fetch NAV for ${fund.symbol}:`, e);
+                            return null;
                         }
-                    } catch (e) {
-                        console.error(`Failed to fetch fund NAV for ${fundCode}: `, e);
                     }
-                }
+                    return null;
+                }));
+
+                results.forEach(res => {
+                    if (res) {
+                        prices.set(res.symbol, { price: res.price, currency: 'JPY' });
+                        previousCloseMap.set(res.symbol, res.previousClose || 0);
+                    }
+                });
             }
 
             // If no prices at all, fall back
@@ -203,7 +214,7 @@ export async function GET() {
         const summary = generatePortfolioSummary(
             holdings,
             [], // No other assets
-            [], // No transactions yet
+            transactions, // Pass transactions
             [], // No dividends yet
             prices,
             previousPrices,

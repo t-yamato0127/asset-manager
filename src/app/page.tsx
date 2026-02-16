@@ -15,9 +15,23 @@ import type {
   Holding,
   PortfolioSummary,
   CategorySummary,
-  ChartDataPoint
+  ChartDataPoint,
+  Transaction
 } from '@/types';
 import { formatCurrency, formatPercent, formatChange } from '@/lib/exchangeRate';
+
+interface PortfolioData {
+  holdings: Holding[];
+  transactions: Transaction[];
+  summary: PortfolioSummary;
+  categories: CategorySummary[];
+  exchangeRate: number;
+  exchangeRateSource: string;
+  priceSource: string;
+  totalValueJPY: number;
+  source: string;
+  updatedAt: string;
+}
 
 // Sample data for demonstration (will be replaced with API data)
 const SAMPLE_HOLDINGS: (Holding & { currentPrice: number; totalValue: number; unrealizedPL: number; unrealizedPLPercent: number })[] = [
@@ -134,6 +148,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<PortfolioSummary>(SAMPLE_SUMMARY);
   const [categories, setCategories] = useState<CategorySummary[]>(SAMPLE_CATEGORIES);
   const [holdings, setHoldings] = useState(SAMPLE_HOLDINGS);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>(SAMPLE_CHART_DATA);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
@@ -148,6 +163,10 @@ export default function Dashboard() {
         if (data.holdings && data.holdings.length > 0) {
           // Set enriched holdings with real price data
           setHoldings(data.holdings);
+        }
+
+        if (data.transactions) {
+          setTransactions(data.transactions);
         }
 
         if (data.summary) {
@@ -424,6 +443,102 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+      {/* Transaction History Section */}
+      <div className={styles.sectionHeader} style={{ marginTop: '2rem' }}>
+        <h2 className={styles.sectionTitle}>📅 今年の取引履歴 ({new Date().getFullYear()}年)</h2>
+      </div>
+
+      <div className={styles.gridContainer}>
+        {/* Sell History */}
+        <div className={styles.card}>
+          <h3 className={styles.cardTitle} style={{ marginBottom: '1rem', color: '#ef4444' }}>🔴 売却履歴</h3>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>日付</th>
+                  <th>銘柄</th>
+                  <th>数量</th>
+                  <th>売却単価</th>
+                  <th>実現損益</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions
+                  .filter(t => new Date(t.date).getFullYear() === new Date().getFullYear() && t.type === 'sell')
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((t) => (
+                    <tr key={t.id}>
+                      <td>{new Date(t.date).toLocaleDateString('ja-JP')}</td>
+                      <td>
+                        <div className={styles.symbolCell}>
+                          <span className={styles.symbolCode}>{t.symbol}</span>
+                          <span className={styles.symbolName}>{t.name}</span>
+                        </div>
+                      </td>
+                      <td>{t.quantity.toLocaleString()}</td>
+                      <td>{formatCurrency(t.price, t.currency)}</td>
+                      <td className={(t.realizedPL || 0) >= 0 ? styles.positive : styles.negative}>
+                        {(t.realizedPL || 0) >= 0 ? '+' : ''}{formatCurrency(t.realizedPL || 0, t.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                {transactions.filter(t => new Date(t.date).getFullYear() === new Date().getFullYear() && t.type === 'sell').length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>
+                      取引なし
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Buy History */}
+        <div className={styles.card}>
+          <h3 className={styles.cardTitle} style={{ marginBottom: '1rem', color: '#22c55e' }}>🔵 購入履歴</h3>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>日付</th>
+                  <th>銘柄</th>
+                  <th>数量</th>
+                  <th>購入単価</th>
+                  <th>支払額</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions
+                  .filter(t => new Date(t.date).getFullYear() === new Date().getFullYear() && t.type === 'buy')
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((t) => (
+                    <tr key={t.id}>
+                      <td>{new Date(t.date).toLocaleDateString('ja-JP')}</td>
+                      <td>
+                        <div className={styles.symbolCell}>
+                          <span className={styles.symbolCode}>{t.symbol}</span>
+                          <span className={styles.symbolName}>{t.name}</span>
+                        </div>
+                      </td>
+                      <td>{t.quantity.toLocaleString()}</td>
+                      <td>{formatCurrency(t.price, t.currency)}</td>
+                      <td>{formatCurrency(t.price * t.quantity, t.currency)}</td>
+                    </tr>
+                  ))}
+                {transactions.filter(t => new Date(t.date).getFullYear() === new Date().getFullYear() && t.type === 'buy').length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>
+                      取引なし
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
