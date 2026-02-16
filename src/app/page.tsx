@@ -387,6 +387,9 @@ export default function Dashboard() {
                     <div className={styles.symbolCell}>
                       <span className={styles.symbolCode}>{holding.symbol}</span>
                       <span className={styles.symbolName}>{holding.name}</span>
+                      <span className={`${styles.accountTag} ${styles[`account_${holding.accountType}`]}`}>
+                        {holding.accountType === 'nisa' ? 'NISA' : holding.accountType === 'specific' ? '特定' : '一般'}
+                      </span>
                     </div>
                   </td>
                   <td>
