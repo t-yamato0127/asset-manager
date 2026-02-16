@@ -75,7 +75,7 @@ export async function fetchMultipleStockPrices(
     for (let i = 0; i < symbols.length; i += batchSize) {
         const batch = symbols.slice(i, i + batchSize);
 
-        const promises = batch.map(symbol => fetchStockPrice(symbol));
+        const promises = batch.map(symbol => fetchStockPriceV8(symbol));
         const batchResults = await Promise.all(promises);
 
         batchResults.forEach(result => {

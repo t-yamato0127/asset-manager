@@ -43,6 +43,7 @@ export async function GET() {
         const symbols = holdings.map(h => h.symbol);
         let prices = new Map<string, { price: number; currency: string }>();
         let priceSource = 'yahoo_finance';
+        const previousCloseMap = new Map<string, number>();
 
         try {
             const stockQuotes = await fetchMultipleStockPrices(symbols);
@@ -51,7 +52,14 @@ export async function GET() {
                     price: quote.price,
                     currency: quote.currency,
                 });
+                // Store previousClose for accurate day change calculation
+                previousCloseMap.set(symbol, quote.previousClose);
             });
+
+            // If Yahoo returned no results, fall back
+            if (prices.size === 0) {
+                throw new Error('Yahoo Finance returned no price data');
+            }
         } catch (priceError) {
             console.error('Failed to fetch live prices, falling back to sheets:', priceError);
             // Fallback: use latest prices from Google Sheets
@@ -95,12 +103,12 @@ export async function GET() {
             usdJpyRate
         );
 
-        // 6. Build previous prices (use avgCost as baseline for now)
+        // 6. Build previous prices using real previousClose from Yahoo Finance
         const previousPrices = new Map<string, { price: number; currency: string }>();
         prices.forEach((priceData, symbol) => {
-            // Use previous close if available from Yahoo, otherwise estimate
+            const prevClose = previousCloseMap.get(symbol);
             previousPrices.set(symbol, {
-                price: priceData.price * 0.998, // ~0.2% difference estimate
+                price: prevClose || priceData.price, // Use real previousClose if available
                 currency: priceData.currency,
             });
         });
