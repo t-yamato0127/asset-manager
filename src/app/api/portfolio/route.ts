@@ -138,7 +138,7 @@ export async function GET() {
 
                 results.forEach(res => {
                     if (res) {
-                        prices.set(res.symbol, { price: res.price, currency: 'JPY' });
+                        prices.set(res.symbol, { price: res.price || 0, currency: 'JPY' });
                         previousCloseMap.set(res.symbol, res.previousClose || 0);
                     }
                 });
