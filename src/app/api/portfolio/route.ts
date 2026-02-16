@@ -1,7 +1,7 @@
 // Unified portfolio API - combines holdings, real-time prices, exchange rates, and calculations
 import { NextResponse } from 'next/server';
 import { getHoldings, getLatestPrices, getPriceHistory } from '@/lib/googleSheets';
-import { fetchMultipleStockPrices } from '@/lib/stockApi';
+import { fetchMultipleStockPrices, fetchMutualFundNAV } from '@/lib/stockApi';
 import { fetchUsdJpyRate } from '@/lib/exchangeRate';
 import {
     calculateHoldingsValue,
@@ -9,6 +9,17 @@ import {
     generatePortfolioSummary,
 } from '@/lib/calculations';
 import type { Holding } from '@/types';
+
+// Mapping: holding symbol -> Yahoo Finance Japan fund code
+// Mutual funds share the same NAV regardless of distribution/reinvestment course
+const FUND_CODE_MAP: Record<string, string> = {
+    'capital-world': '9331107A',     // キャピタル世界株式ファンド
+    'ghq-dist': '47316169',          // グロハイクオリティ成長(受取)
+    'ghq-reinv': '47316169',         // グロハイクオリティ成長(再投資) - same NAV
+    'trowe-allcap': 'AW31122B',      // T.ロウ・プライス米国オールキャップ
+    'capital-ica': '93311181',        // キャピタルICA
+    'pictet-gold': '42312199',       // ピクテ・ゴールド(為替ヘッジなし)
+};
 
 export async function GET() {
     try {
@@ -39,26 +50,77 @@ export async function GET() {
             createdAt: h.createdAt,
         }));
 
-        // 2. Fetch real-time stock prices from Yahoo Finance
-        const symbols = holdings.map(h => h.symbol);
+        // 2. Fetch real-time prices
+        // Separate mutual funds from stocks
+        const mutualFundHoldings = holdings.filter(h => h.category === 'mutual_fund');
+        const stockHoldings = holdings.filter(h => h.category !== 'mutual_fund');
+
         let prices = new Map<string, { price: number; currency: string }>();
         let priceSource = 'yahoo_finance';
         const previousCloseMap = new Map<string, number>();
 
         try {
-            const stockQuotes = await fetchMultipleStockPrices(symbols);
-            stockQuotes.forEach((quote, symbol) => {
-                prices.set(symbol, {
-                    price: quote.price,
-                    currency: quote.currency,
+            // 2a. Fetch stock prices via Yahoo Finance v8 API
+            if (stockHoldings.length > 0) {
+                const stockSymbols = stockHoldings.map(h => h.symbol);
+                const stockQuotes = await fetchMultipleStockPrices(stockSymbols);
+                stockQuotes.forEach((quote, symbol) => {
+                    prices.set(symbol, {
+                        price: quote.price,
+                        currency: quote.currency,
+                    });
+                    previousCloseMap.set(symbol, quote.previousClose);
                 });
-                // Store previousClose for accurate day change calculation
-                previousCloseMap.set(symbol, quote.previousClose);
-            });
+            }
 
-            // If Yahoo returned no results, fall back
+            // 2b. Fetch mutual fund NAVs via Yahoo Finance Japan scraping
+            if (mutualFundHoldings.length > 0) {
+                // Deduplicate fund codes (e.g., ghq-dist and ghq-reinv share 47316169)
+                const uniqueFundCodes = new Map<string, string[]>(); // fundCode -> [symbol1, symbol2, ...]
+                for (const h of mutualFundHoldings) {
+                    const fundCode = FUND_CODE_MAP[h.symbol];
+                    if (fundCode) {
+                        const symbols = uniqueFundCodes.get(fundCode) || [];
+                        symbols.push(h.symbol);
+                        uniqueFundCodes.set(fundCode, symbols);
+                    } else {
+                        console.warn(`No fund code mapping for symbol: ${h.symbol}`);
+                    }
+                }
+
+                // Fetch each unique fund code once
+                const fundCodeEntries = Array.from(uniqueFundCodes.entries());
+                for (const [fundCode, holdingSymbols] of fundCodeEntries) {
+                    try {
+                        const navData = await fetchMutualFundNAV(fundCode);
+                        if (navData) {
+                            // Map the NAV back to each holding symbol using this fund code
+                            for (const sym of holdingSymbols) {
+                                prices.set(sym, {
+                                    price: navData.price,
+                                    currency: 'JPY',
+                                });
+                                previousCloseMap.set(sym, navData.previousClose);
+                            }
+                            console.log(`Fund ${fundCode}: NAV=${navData.price} -> symbols: ${holdingSymbols.join(', ')}`);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to fetch fund NAV for ${fundCode}:`, e);
+                    }
+                }
+            }
+
+            // If no prices at all, fall back
             if (prices.size === 0) {
-                throw new Error('Yahoo Finance returned no price data');
+                throw new Error('No price data obtained from any source');
+            }
+
+            // For any holdings that didn't get a price, use avgCost as fallback
+            for (const h of holdings) {
+                if (!prices.has(h.symbol)) {
+                    prices.set(h.symbol, { price: h.avgCost, currency: h.currency });
+                    console.warn(`No price for ${h.symbol}, using avgCost=${h.avgCost}`);
+                }
             }
         } catch (priceError) {
             console.error('Failed to fetch live prices, falling back to sheets:', priceError);
@@ -74,6 +136,7 @@ export async function GET() {
                 });
             }
         }
+
 
         // 3. Fetch exchange rate
         let usdJpyRate = 150; // Default fallback
