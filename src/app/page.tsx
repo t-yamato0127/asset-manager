@@ -380,8 +380,8 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {filteredHoldings.map(holding => (
-                <tr key={holding.id}>
+              {filteredHoldings.map((holding, idx) => (
+                <tr key={`${holding.id}-${idx}`}>
                   <td>
                     <div className={styles.symbolCell}>
                       <span className={styles.symbolCode}>{holding.symbol}</span>

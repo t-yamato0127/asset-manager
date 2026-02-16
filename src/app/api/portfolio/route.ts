@@ -19,7 +19,17 @@ const FUND_CODE_MAP: Record<string, string> = {
     'trowe-allcap': 'AW31122B',      // T.ロウ・プライス米国オールキャップ
     'capital-ica': '93311181',        // キャピタルICA
     'pictet-gold': '42312199',       // ピクテ・ゴールド(為替ヘッジなし)
+    'ifree-fang': '04311181',        // iFreeNEXT FANG+インデックス
+    'emaxis-ac-general': '0331418A', // eMAXIS Slim 全世界株式(オールカントリー)
+    'emaxis-ac-nisa': '0331418A',    // eMAXIS Slim 全世界株式(NISA) - same NAV
 };
+
+// Normalize symbol for Yahoo Finance API lookups
+// e.g., '7034.T-sbi' → '7034.T' (remove broker suffix)
+function normalizeSymbolForPriceLookup(symbol: string): string {
+    const match = symbol.match(/^(\d{4}[A-Za-z]?\.T)/);
+    return match ? match[1] : symbol;
+}
 
 export async function GET() {
     try {
@@ -63,14 +73,26 @@ export async function GET() {
         try {
             // 2a. Fetch stock prices via Yahoo Finance v8 API
             if (stockHoldings.length > 0) {
-                const stockSymbols = stockHoldings.map(h => h.symbol);
-                const stockQuotes = await fetchMultipleStockPrices(stockSymbols);
-                stockQuotes.forEach((quote, symbol) => {
-                    prices.set(symbol, {
-                        price: quote.price,
-                        currency: quote.currency,
-                    });
-                    previousCloseMap.set(symbol, quote.previousClose);
+                // Deduplicate symbols (e.g., 7203.T from both brokers, 7034.T-sbi → 7034.T)
+                const symbolToNormalized = new Map<string, string>();
+                stockHoldings.forEach(h => {
+                    symbolToNormalized.set(h.symbol, normalizeSymbolForPriceLookup(h.symbol));
+                });
+                const uniqueNormalizedSymbols = [...new Set(symbolToNormalized.values())];
+
+                const stockQuotes = await fetchMultipleStockPrices(uniqueNormalizedSymbols);
+
+                // Map results back to all holding symbols (including suffixed ones)
+                stockHoldings.forEach(h => {
+                    const normalized = symbolToNormalized.get(h.symbol)!;
+                    const quote = stockQuotes.get(normalized);
+                    if (quote) {
+                        prices.set(h.symbol, {
+                            price: quote.price,
+                            currency: quote.currency,
+                        });
+                        previousCloseMap.set(h.symbol, quote.previousClose);
+                    }
                 });
             }
 
