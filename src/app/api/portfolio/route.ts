@@ -47,6 +47,7 @@ export async function GET() {
             avgCost: h.avgCost,
             currency: h.currency,
             accountType: h.accountType,
+            broker: h.broker,
             createdAt: h.createdAt,
         }));
 

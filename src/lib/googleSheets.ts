@@ -116,6 +116,7 @@ export async function getHoldings() {
     const costIdx = colIndex('averagecost') >= 0 ? colIndex('averagecost') : colIndex('avgcost');
     const curIdx = colIndex('currency');
     const acctIdx = colIndex('accounttype');
+    const brokerIdx = colIndex('broker');
 
     return rows.map((row, i) => ({
         id: symIdx >= 0 ? (row[symIdx] || String(i)) : String(i),
@@ -126,6 +127,7 @@ export async function getHoldings() {
         avgCost: costIdx >= 0 ? (parseFloat(row[costIdx]) || 0) : 0,
         currency: (curIdx >= 0 ? (row[curIdx] || 'JPY') : 'JPY') as 'JPY' | 'USD',
         accountType: (acctIdx >= 0 ? (row[acctIdx] || 'specific') : 'specific') as 'nisa' | 'specific' | 'general',
+        broker: brokerIdx >= 0 ? (row[brokerIdx] || '') : '',
         createdAt: new Date().toISOString(),
     }));
 }

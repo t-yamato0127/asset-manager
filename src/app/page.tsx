@@ -371,6 +371,7 @@ export default function Dashboard() {
             <thead>
               <tr>
                 <th>銘柄</th>
+                <th>証券会社</th>
                 <th>現在値</th>
                 <th>保有数</th>
                 <th>評価額</th>
@@ -386,6 +387,9 @@ export default function Dashboard() {
                       <span className={styles.symbolCode}>{holding.symbol}</span>
                       <span className={styles.symbolName}>{holding.name}</span>
                     </div>
+                  </td>
+                  <td>
+                    <span className={styles.brokerTag}>{holding.broker || '-'}</span>
                   </td>
                   <td className={styles.priceCell}>
                     {formatCurrency(holding.currentPrice, holding.currency)}

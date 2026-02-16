@@ -26,6 +26,7 @@ export interface Holding {
     avgCost: number;
     currency: Currency;
     accountType: AccountType;
+    broker?: string;  // 証券会社 (e.g., 'みずほ銀行', 'SBI証券')
     createdAt: string;
     // Calculated fields (populated at runtime)
     currentPrice?: number;
