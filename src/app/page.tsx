@@ -130,15 +130,6 @@ const SAMPLE_CATEGORIES: CategorySummary[] = [
   { category: 'mutual_fund', label: '投資信託', value: 2987655, valueJPY: 2987655, percentage: 24.2, color: '#f59e0b' },
 ];
 
-const SAMPLE_CHART_DATA: ChartDataPoint[] = [
-  { date: '01/01', value: 11500000 },
-  { date: '01/15', value: 11800000 },
-  { date: '02/01', value: 11650000 },
-  { date: '02/15', value: 12100000 },
-  { date: '03/01', value: 12000000 },
-  { date: '03/15', value: 12250000 },
-  { date: '04/01', value: 12345678 },
-];
 
 type ChartPeriod = '1W' | '1M' | '3M' | '1Y' | 'ALL';
 type TableTab = 'all' | 'domestic' | 'us' | 'fund';
@@ -149,7 +140,7 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<CategorySummary[]>(SAMPLE_CATEGORIES);
   const [holdings, setHoldings] = useState(SAMPLE_HOLDINGS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [chartData, setChartData] = useState<ChartDataPoint[]>(SAMPLE_CHART_DATA);
+  const [allHistory, setAllHistory] = useState<{ date: string; value: number }[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
   const [usdJpyRate, setUsdJpyRate] = useState(150.5);
@@ -247,6 +238,46 @@ export default function Dashboard() {
 
     fetchPortfolio();
   }, []);
+
+  // Fetch portfolio history for chart
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await fetch('/api/portfolio/history?days=365');
+        const data = await res.json();
+        if (data.history && data.history.length > 0) {
+          setAllHistory(data.history);
+        }
+      } catch (e) {
+        console.error('Error fetching history:', e);
+      }
+    }
+    fetchHistory();
+  }, []);
+
+  // Compute filtered chart data based on selected period
+  const chartData: ChartDataPoint[] = (() => {
+    if (allHistory.length === 0) return [];
+    const now = new Date();
+    let daysBack = 30;
+    if (chartPeriod === '1W') daysBack = 7;
+    else if (chartPeriod === '1M') daysBack = 30;
+    else if (chartPeriod === '3M') daysBack = 90;
+    else if (chartPeriod === '1Y') daysBack = 365;
+    else daysBack = 99999; // ALL
+
+    const cutoff = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    const filtered = allHistory.filter(h => new Date(h.date) >= cutoff);
+    const data = filtered.length > 0 ? filtered : allHistory;
+
+    return data.map(h => {
+      const d = new Date(h.date);
+      const label = daysBack <= 90
+        ? `${d.getMonth() + 1}/${d.getDate()}`
+        : `${String(d.getFullYear()).slice(2)}/${d.getMonth() + 1}`;
+      return { date: label, value: h.value };
+    });
+  })();
 
   const filteredHoldings = holdings.filter(h => {
     if (tableTab === 'all') return true;
