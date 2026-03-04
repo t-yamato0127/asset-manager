@@ -154,6 +154,61 @@ export default function Dashboard() {
   const [tableTab, setTableTab] = useState<TableTab>('all');
   const [usdJpyRate, setUsdJpyRate] = useState(150.5);
 
+  // Transaction registration modal
+  const [showModal, setShowModal] = useState(false);
+  const [txSubmitting, setTxSubmitting] = useState(false);
+  const [txSuccess, setTxSuccess] = useState(false);
+  const [txForm, setTxForm] = useState({
+    type: 'buy' as 'buy' | 'sell',
+    date: new Date().toISOString().split('T')[0],
+    symbol: '',
+    name: '',
+    quantity: '',
+    price: '',
+    fees: '0',
+    realizedPL: '0',
+    currency: 'JPY' as 'JPY' | 'USD',
+    accountType: 'specific',
+    broker: 'SBI証券',
+  });
+
+  const resetForm = () => {
+    setTxForm({
+      type: 'buy',
+      date: new Date().toISOString().split('T')[0],
+      symbol: '', name: '', quantity: '', price: '',
+      fees: '0', realizedPL: '0',
+      currency: 'JPY', accountType: 'specific', broker: 'SBI証券',
+    });
+    setTxSuccess(false);
+  };
+
+  const handleTxSubmit = async () => {
+    setTxSubmitting(true);
+    try {
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(txForm),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setTxSuccess(true);
+      // Refresh portfolio data
+      const portfolioRes = await fetch('/api/portfolio');
+      const data = await portfolioRes.json();
+      if (data.holdings?.length > 0) setHoldings(data.holdings);
+      if (data.transactions) setTransactions(data.transactions);
+      if (data.summary) setSummary(data.summary);
+      if (data.categories?.length > 0) setCategories(data.categories);
+      setTimeout(() => { setShowModal(false); resetForm(); }, 1200);
+    } catch (e) {
+      console.error('Error submitting transaction:', e);
+      alert('取引の登録に失敗しました');
+    } finally {
+      setTxSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     async function fetchPortfolio() {
       try {
@@ -448,6 +503,7 @@ export default function Dashboard() {
       {/* Transaction History Section */}
       <div className={styles.sectionHeader} style={{ marginTop: '2rem' }}>
         <h2 className={styles.sectionTitle}>📅 今年の取引履歴 ({new Date().getFullYear()}年)</h2>
+        <button className={styles.addButton} onClick={() => { resetForm(); setShowModal(true); }}>＋ 取引を登録</button>
       </div>
 
       <div className={styles.gridContainer}>
@@ -541,6 +597,114 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Transaction Registration Modal */}
+      {showModal && (
+        <div className={styles.modalOverlay} onClick={() => { setShowModal(false); resetForm(); }}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>📝 取引を登録</h3>
+              <button className={styles.modalClose} onClick={() => { setShowModal(false); resetForm(); }}>×</button>
+            </div>
+
+            {txSuccess ? (
+              <div className={styles.successMessage}>✅ 取引を登録しました</div>
+            ) : (
+              <>
+                {/* Buy / Sell Toggle */}
+                <div className={styles.typeToggle}>
+                  <button
+                    className={txForm.type === 'buy' ? styles.typeToggleBuy : styles.typeToggleBtn}
+                    onClick={() => setTxForm(f => ({ ...f, type: 'buy' }))}
+                  >🔵 購入</button>
+                  <button
+                    className={txForm.type === 'sell' ? styles.typeToggleSell : styles.typeToggleBtn}
+                    onClick={() => setTxForm(f => ({ ...f, type: 'sell' }))}
+                  >🔴 売却</button>
+                </div>
+
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>日付</label>
+                    <input type="date" className={styles.formInput} value={txForm.date}
+                      onChange={e => setTxForm(f => ({ ...f, date: e.target.value }))} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>通貨</label>
+                    <select className={styles.formSelect} value={txForm.currency}
+                      onChange={e => setTxForm(f => ({ ...f, currency: e.target.value as 'JPY' | 'USD' }))}>
+                      <option value="JPY">JPY (円)</option>
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>銘柄コード</label>
+                    <input type="text" className={styles.formInput} placeholder="例: 7203.T" value={txForm.symbol}
+                      onChange={e => setTxForm(f => ({ ...f, symbol: e.target.value }))} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>銘柄名</label>
+                    <input type="text" className={styles.formInput} placeholder="例: トヨタ自動車" value={txForm.name}
+                      onChange={e => setTxForm(f => ({ ...f, name: e.target.value }))} />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>数量</label>
+                    <input type="number" className={styles.formInput} placeholder="100" value={txForm.quantity}
+                      onChange={e => setTxForm(f => ({ ...f, quantity: e.target.value }))} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>約定単価</label>
+                    <input type="number" className={styles.formInput} placeholder="2500" value={txForm.price}
+                      onChange={e => setTxForm(f => ({ ...f, price: e.target.value }))} />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>手数料</label>
+                    <input type="number" className={styles.formInput} value={txForm.fees}
+                      onChange={e => setTxForm(f => ({ ...f, fees: e.target.value }))} />
+                  </div>
+                  {txForm.type === 'sell' && (
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>実現損益</label>
+                      <input type="number" className={styles.formInput} value={txForm.realizedPL}
+                        onChange={e => setTxForm(f => ({ ...f, realizedPL: e.target.value }))} />
+                    </div>
+                  )}
+
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>口座種別</label>
+                    <select className={styles.formSelect} value={txForm.accountType}
+                      onChange={e => setTxForm(f => ({ ...f, accountType: e.target.value }))}>
+                      <option value="specific">特定口座</option>
+                      <option value="nisa">NISA</option>
+                      <option value="general">一般口座</option>
+                    </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>証券会社</label>
+                    <select className={styles.formSelect} value={txForm.broker}
+                      onChange={e => setTxForm(f => ({ ...f, broker: e.target.value }))}>
+                      <option value="SBI証券">SBI証券</option>
+                      <option value="マネックス証券">マネックス証券</option>
+                      <option value="みずほ銀行">みずほ銀行</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  className={styles.submitButton}
+                  disabled={txSubmitting || !txForm.symbol || !txForm.name || !txForm.quantity || !txForm.price}
+                  onClick={handleTxSubmit}
+                >
+                  {txSubmitting ? '登録中...' : `${txForm.type === 'buy' ? '購入' : '売却'}を登録`}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

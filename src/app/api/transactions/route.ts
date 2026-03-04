@@ -1,77 +1,15 @@
-// API route for fetching transactions and realized P&L
+// API route for fetching and creating transactions
 import { NextRequest, NextResponse } from 'next/server';
-
-// Sample transactions data
-const sampleTransactions = [
-    {
-        id: '1',
-        date: '2024-12-15',
-        symbol: '6758.T',
-        name: 'ソニーグループ',
-        type: 'sell',
-        quantity: 100,
-        price: 14500,
-        fees: 550,
-        realizedPL: 125000,
-        currency: 'JPY',
-    },
-    {
-        id: '2',
-        date: '2024-11-20',
-        symbol: 'GOOGL',
-        name: 'Alphabet Inc.',
-        type: 'sell',
-        quantity: 20,
-        price: 175,
-        fees: 5,
-        realizedPL: 450,
-        currency: 'USD',
-    },
-    {
-        id: '3',
-        date: '2024-10-10',
-        symbol: '7203.T',
-        name: 'トヨタ自動車',
-        type: 'buy',
-        quantity: 100,
-        price: 2400,
-        fees: 275,
-        currency: 'JPY',
-    },
-    {
-        id: '4',
-        date: '2024-09-05',
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        type: 'buy',
-        quantity: 50,
-        price: 150,
-        fees: 5,
-        currency: 'USD',
-    },
-    {
-        id: '5',
-        date: '2024-08-15',
-        symbol: '8306.T',
-        name: '三菱UFJ',
-        type: 'sell',
-        quantity: 500,
-        price: 1580,
-        fees: 440,
-        realizedPL: 89500,
-        currency: 'JPY',
-    },
-];
+import { getTransactions, addTransaction } from '@/lib/googleSheets';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const year = searchParams.get('year');
-    const type = searchParams.get('type'); // 'buy' | 'sell' | undefined
+    const type = searchParams.get('type');
 
     try {
-        let transactions = [...sampleTransactions];
+        let transactions = await getTransactions();
 
-        // Filter by year
         if (year) {
             const yearNum = parseInt(year);
             transactions = transactions.filter(t =>
@@ -79,12 +17,10 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Filter by type
         if (type) {
             transactions = transactions.filter(t => t.type === type);
         }
 
-        // Calculate summary
         const sellTransactions = transactions.filter(t => t.type === 'sell');
         const totalRealizedPL = sellTransactions.reduce(
             (sum, t) => sum + (t.realizedPL || 0),
@@ -106,6 +42,53 @@ export async function GET(request: NextRequest) {
         console.error('Error fetching transactions:', error);
         return NextResponse.json(
             { error: 'Failed to fetch transactions' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+
+        // Validate required fields
+        const { date, symbol, name, type, quantity, price } = body;
+        if (!date || !symbol || !name || !type || !quantity || !price) {
+            return NextResponse.json(
+                { error: '必須項目が不足しています: date, symbol, name, type, quantity, price' },
+                { status: 400 }
+            );
+        }
+
+        if (type !== 'buy' && type !== 'sell') {
+            return NextResponse.json(
+                { error: 'type は "buy" または "sell" を指定してください' },
+                { status: 400 }
+            );
+        }
+
+        await addTransaction({
+            date,
+            symbol,
+            name,
+            type,
+            quantity: Number(quantity),
+            price: Number(price),
+            fees: Number(body.fees || 0),
+            realizedPL: Number(body.realizedPL || 0),
+            currency: body.currency || 'JPY',
+            accountType: body.accountType || '',
+            broker: body.broker || '',
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: '取引を登録しました',
+        });
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        return NextResponse.json(
+            { error: '取引の登録に失敗しました' },
             { status: 500 }
         );
     }

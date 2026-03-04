@@ -300,4 +300,34 @@ export async function saveExchangeRate(rate: number, date?: string) {
     await appendToSheet(SHEETS.EXCHANGE_RATES, [[dateStr, rate]]);
 }
 
+// Add a new transaction
+export async function addTransaction(tx: {
+    date: string;
+    symbol: string;
+    name: string;
+    type: 'buy' | 'sell';
+    quantity: number;
+    price: number;
+    fees: number;
+    realizedPL: number;
+    currency: 'JPY' | 'USD';
+    accountType?: string;
+    broker?: string;
+}) {
+    const row = [
+        tx.date,
+        tx.symbol,
+        tx.name,
+        tx.type,
+        tx.quantity,
+        tx.price,
+        tx.fees,
+        tx.realizedPL,
+        tx.currency,
+        tx.accountType || '',
+        tx.broker || '',
+    ];
+    await appendToSheet(SHEETS.TRANSACTIONS, [row]);
+}
+
 export { SHEETS };
