@@ -297,6 +297,78 @@ export default function Dashboard() {
     });
   };
 
+  const downloadHoldingsCSV = () => {
+    if (filteredHoldings.length === 0) return;
+    const headers = ['銘柄コード', '銘柄名', '証券会社', '口座種別', '現在値', '取得単価', '保有数', '評価額', '日次損益', '評価損益', '損益率', '通貨'];
+    
+    const rows = filteredHoldings.map(h => [
+      h.symbol,
+      h.name,
+      h.broker || '',
+      h.accountType === 'nisa' ? 'NISA' : h.accountType === 'specific' ? '特定' : '一般',
+      h.currentPrice,
+      h.avgCost,
+      h.quantity,
+      h.totalValue,
+      h.dayChange || 0,
+      h.unrealizedPL,
+      h.unrealizedPLPercent,
+      h.currency
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `holdings_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadTransactionsCSV = () => {
+    if (transactions.length === 0) return;
+    const headers = ['日付', '種別', '銘柄コード', '銘柄名', '証券会社', '口座種別', '数量', '約定単価', '手数料', '実現損益', '支払額/受取額', '通貨'];
+    
+    const rows = transactions.map(t => {
+      const anyT: any = t;
+      const amount = t.type === 'buy' ? -(t.price * t.quantity + (parseFloat(String(anyT.fees || '0')))) : (t.price * t.quantity - (parseFloat(String(anyT.fees || '0'))));
+      return [
+        t.date,
+        t.type === 'buy' ? '購入' : '売却',
+        t.symbol,
+        t.name,
+        anyT.broker || '',
+        anyT.accountType === 'nisa' ? 'NISA' : anyT.accountType === 'specific' ? '特定' : '一般',
+        t.quantity,
+        t.price,
+        anyT.fees || 0,
+        t.realizedPL || 0,
+        amount,
+        t.currency
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (isLoading) {
     return (
       <div className={styles.dashboard}>
@@ -454,21 +526,26 @@ export default function Dashboard() {
       <div className={styles.tableSection}>
         <div className={styles.tableHeader}>
           <h2 className={styles.tableTitle}>💼 保有銘柄</h2>
-          <div className={styles.tableTabs}>
-            {[
-              { key: 'all', label: 'すべて' },
-              { key: 'domestic', label: '国内株' },
-              { key: 'us', label: '米国株' },
-              { key: 'fund', label: '投信' },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                className={tableTab === tab.key ? styles.tableTabActive : styles.tableTab}
-                onClick={() => setTableTab(tab.key as TableTab)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <button onClick={downloadHoldingsCSV} className={styles.downloadBtn}>
+              📥 CSVダウンロード
+            </button>
+            <div className={styles.tableTabs}>
+              {[
+                { key: 'all', label: 'すべて' },
+                { key: 'domestic', label: '国内株' },
+                { key: 'us', label: '米国株' },
+                { key: 'fund', label: '投信' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  className={tableTab === tab.key ? styles.tableTabActive : styles.tableTab}
+                  onClick={() => setTableTab(tab.key as TableTab)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div className={styles.tableContainer}>
@@ -534,7 +611,12 @@ export default function Dashboard() {
       {/* Transaction History Section */}
       <div className={styles.sectionHeader} style={{ marginTop: '2rem' }}>
         <h2 className={styles.sectionTitle}>📅 今年の取引履歴 ({new Date().getFullYear()}年)</h2>
-        <button className={styles.addButton} onClick={() => { resetForm(); setShowModal(true); }}>＋ 取引を登録</button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button onClick={downloadTransactionsCSV} className={styles.downloadBtn}>
+            📥 CSVダウンロード
+          </button>
+          <button className={styles.addButton} onClick={() => { resetForm(); setShowModal(true); }}>＋ 取引を登録</button>
+        </div>
       </div>
 
       <div className={styles.gridContainer}>

@@ -288,6 +288,26 @@
   font-weight: 600;
 }
 
+.downloadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.downloadBtn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-color-hover);
+}
+
 .tableTabs {
   display: flex;
   gap: var(--spacing-sm);

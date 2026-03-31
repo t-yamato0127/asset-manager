@@ -26,36 +26,29 @@ async function main() {
     const sheets = google.sheets({ version: 'v4', auth });
     const spreadsheetId = envVars['GOOGLE_SPREADSHEET_ID'];
 
-    // Get the sheetId for 'holdings'
-    const sp = await sheets.spreadsheets.get({ spreadsheetId });
-    const holdingsSheet = sp.data.sheets.find(s => s.properties.title === 'holdings');
-    const sheetId = holdingsSheet.properties.sheetId;
+    const newRows = [
+        ['DUOL', 'デュオリンゴ', 'us_stock', '30', '100.55', 'USD', 'nisa', 'SBI証券'],
+        ['IBM', 'IBM', 'us_stock', '10', '235', 'USD', 'nisa', 'SBI証券'],
+    ];
 
-    // Delete row 55 (0-indexed row 54) - the newly added ブシロード
-    await sheets.spreadsheets.batchUpdate({
+    await sheets.spreadsheets.values.append({
         spreadsheetId,
-        requestBody: {
-            requests: [{
-                deleteDimension: {
-                    range: {
-                        sheetId,
-                        dimension: 'ROWS',
-                        startIndex: 54, // 0-indexed, so row 55 in sheet
-                        endIndex: 55,
-                    },
-                },
-            }],
-        },
+        range: 'holdings!A1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: newRows },
     });
-    console.log('Deleted row 55 (ブシロード 1000株 @250)');
+    console.log('Added: DUOL デュオリンゴ, IBM');
 
-    // Verify
-    const verify = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'holdings!A50:H55',
+    // Verify all US stocks
+    const data = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'holdings!A:H' });
+    const rows = data.data.values || [];
+    console.log('\n=== SBI証券 米国株式 ===');
+    rows.forEach((row, i) => {
+        if (i === 0) return;
+        if (row[2] === 'us_stock' && row[7] === 'SBI証券') {
+            console.log(`  [${row[6]}] ${row[0]} ${row[1]}: ${row[3]}株 @$${row[4]}`);
+        }
     });
-    console.log('\nRemaining rows (50-end):');
-    (verify.data.values || []).forEach((row, i) => console.log(`  ${50 + i}: ${row.join(', ')}`));
 }
 
 main().catch(console.error);
