@@ -485,7 +485,7 @@ export default function Dashboard() {
                   dataKey="value"
                   stroke="url(#gradient)"
                   strokeWidth={3}
-                  dot={false}
+                  dot={chartData.length <= 1}
                   activeDot={{ r: 6, fill: '#6366f1' }}
                 />
                 <defs>
