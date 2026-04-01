@@ -106,4 +106,6 @@ export interface ChartDataPoint {
     date: string;
     value: number;
     label?: string;
+    nikkei?: number;
+    dow?: number;
 }

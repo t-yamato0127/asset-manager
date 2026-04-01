@@ -9,6 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from 'recharts';
 import styles from './page.module.css';
 import type {
@@ -466,10 +467,21 @@ export default function Dashboard() {
                   tickLine={false}
                 />
                 <YAxis
+                  yAxisId="left"
                   stroke="#64748b"
                   fontSize={12}
                   tickLine={false}
                   tickFormatter={(value) => `¥${(value / 1000000).toFixed(1)}M`}
+                  domain={['auto', 'auto']}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#64748b"
+                  fontSize={12}
+                  tickLine={false}
+                  tickFormatter={(value) => value > 1000 ? `${(value / 1000).toFixed(1)}k` : value}
+                  domain={['auto', 'auto']}
                 />
                 <Tooltip
                   contentStyle={{
@@ -478,15 +490,45 @@ export default function Dashboard() {
                     borderRadius: '8px',
                     color: '#f8fafc',
                   }}
-                  formatter={(value) => [formatCurrency(Number(value) || 0), '評価額']}
+                  formatter={(value: any, name: any, props: any) => {
+                    if (props.dataKey === 'value') return [formatCurrency(Number(value) || 0), '総資産額'];
+                    if (props.dataKey === 'nikkei') return [Number(value).toLocaleString() + '円', '日経平均'];
+                    if (props.dataKey === 'dow') return ['$' + Number(value).toLocaleString(), 'NYダウ'];
+                    return [value, name];
+                  }}
                 />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                 <Line
+                  yAxisId="left"
+                  name="総資産額"
                   type="monotone"
                   dataKey="value"
                   stroke="url(#gradient)"
                   strokeWidth={3}
                   dot={chartData.length <= 1}
                   activeDot={{ r: 6, fill: '#6366f1' }}
+                />
+                <Line
+                  yAxisId="right"
+                  name="日経平均 (^N225)"
+                  type="monotone"
+                  dataKey="nikkei"
+                  stroke="#ef4444"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  yAxisId="right"
+                  name="NYダウ (^DJI)"
+                  type="monotone"
+                  dataKey="dow"
+                  stroke="#22c55e"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  activeDot={{ r: 4 }}
                 />
                 <defs>
                   <linearGradient id="gradient" x1="0" y1="0" x2="1" y2="0">

@@ -270,4 +270,46 @@ export function formatMutualFundSymbol(code: string): string {
     return code;
 }
 
+// Fetch historical data for indices (e.g. ^N225, ^DJI)
+export async function fetchIndexHistory(symbol: string, days: number): Promise<Map<string, number>> {
+    const historyMap = new Map<string, number>();
+    try {
+        // Map requested days to Yahoo Finance range string
+        const range = days <= 5 ? '5d' : days <= 30 ? '1mo' : days <= 90 ? '3mo' : days <= 365 ? '1y' : '5y';
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            next: { revalidate: 21600 }, // Cache for 6 hours
+        });
+
+        if (!response.ok) {
+            console.error(`Failed to fetch index history for ${symbol}: ${response.status}`);
+            return historyMap;
+        }
+
+        const data = await response.json();
+        const result = data.chart?.result?.[0];
+        if (!result) return historyMap;
+
+        const timestamps = result.timestamp || [];
+        const closes = result.indicators?.quote?.[0]?.close || [];
+
+        for (let i = 0; i < timestamps.length; i++) {
+            if (closes[i] !== null && closes[i] !== undefined) {
+                // Determine YYYY-MM-DD in local time equivalent or UTC. 
+                // Using UTC since indices dates usually align well with daily charts.
+                const dateObj = new Date(timestamps[i] * 1000);
+                const dateStr = dateObj.toISOString().split('T')[0];
+                historyMap.set(dateStr, closes[i]);
+            }
+        }
+    } catch (error) {
+        console.error(`Error fetching index history for ${symbol}:`, error);
+    }
+    return historyMap;
+}
+
 export type { StockQuote };

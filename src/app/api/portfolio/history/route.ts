@@ -1,7 +1,7 @@
 // API route for portfolio value history chart data
 import { NextRequest, NextResponse } from 'next/server';
 import { getPriceHistory, getHoldings, getExchangeRates } from '@/lib/googleSheets';
-import { fetchMultipleStockPrices, fetchMutualFundNAV } from '@/lib/stockApi';
+import { fetchMultipleStockPrices, fetchMutualFundNAV, fetchIndexHistory } from '@/lib/stockApi';
 import { fetchUsdJpyRate } from '@/lib/exchangeRate';
 
 // Fund code map (same as portfolio route)
@@ -51,8 +51,15 @@ export async function GET(request: NextRequest) {
 
         // Calculate historical portfolio values
         const lastKnownPrice = new Map<string, number>();
-        const history: { date: string; value: number }[] = [];
+        const history: { date: string; value: number; nikkei?: number; dow?: number }[] = [];
         let lastRate = exchangeRates.length > 0 ? exchangeRates[0].usdJpy : 150;
+
+        // Fetch index histories
+        const nikkeiHistory = await fetchIndexHistory('^N225', Math.max(days, 7));
+        const dowHistory = await fetchIndexHistory('^DJI', Math.max(days, 7));
+        
+        let lastNikkei = 0;
+        let lastDow = 0;
 
         for (const date of allDates) {
             const dayPrices = priceByDateSymbol.get(date)!;
@@ -61,6 +68,10 @@ export async function GET(request: NextRequest) {
             }
             const rate = rateByDate.get(date) || lastRate;
             lastRate = rate;
+
+            // Update indices if available for this date
+            if (nikkeiHistory.has(date)) lastNikkei = Math.round(nikkeiHistory.get(date)!);
+            if (dowHistory.has(date)) lastDow = Math.round(dowHistory.get(date)!);
 
             let totalJPY = 0;
             for (const h of holdings) {
@@ -74,7 +85,12 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            history.push({ date, value: Math.round(totalJPY) });
+            history.push({ 
+                date, 
+                value: Math.round(totalJPY),
+                nikkei: lastNikkei > 0 ? lastNikkei : undefined,
+                dow: lastDow > 0 ? lastDow : undefined
+            });
         }
 
         // Always add today's live value as the latest data point
@@ -120,7 +136,16 @@ export async function GET(request: NextRequest) {
                     todayTotal += h.currency === 'USD' ? value * currentRate : value;
                 }
 
-                history.push({ date: today, value: Math.round(todayTotal) });
+                // Add today's index values (if not found for exactly today, carry forward from latest)
+                const todayNikkei = (nikkeiHistory.get(today) && Math.round(nikkeiHistory.get(today)!)) || lastNikkei;
+                const todayDow = (dowHistory.get(today) && Math.round(dowHistory.get(today)!)) || lastDow;
+
+                history.push({ 
+                    date: today, 
+                    value: Math.round(todayTotal),
+                    nikkei: todayNikkei > 0 ? todayNikkei : undefined,
+                    dow: todayDow > 0 ? todayDow : undefined 
+                });
             } catch (e) {
                 console.error('Error fetching today\'s prices for history:', e);
             }
