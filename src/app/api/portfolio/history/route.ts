@@ -46,28 +46,56 @@ export async function GET(request: NextRequest) {
             priceByDateSymbol.get(p.date)!.set(p.symbol, p.price);
         }
 
+        // Fetch index histories
+        const nikkeiHistory = await fetchIndexHistory('^N225', Math.max(days, 30));
+        const dowHistory = await fetchIndexHistory('^DJI', Math.max(days, 30));
+        const usdjpyHistory = await fetchIndexHistory('USDJPY=X', Math.max(days, 30));
+
+        // Fetch stock histories for backfilling
+        const stockHistories = new Map<string, Map<string, number>>();
+        const stockHoldings = holdings.filter(h => h.category !== 'mutual_fund');
+        await Promise.all(stockHoldings.map(async (h) => {
+            const symHistory = await fetchIndexHistory(h.symbol, Math.max(days, 30));
+            stockHistories.set(h.symbol, symHistory);
+        }));
+
         // Get all unique dates, sorted ascending
-        const allDates = Array.from(priceByDateSymbol.keys()).sort();
+        const dateSet = new Set<string>();
+        for (const d of priceByDateSymbol.keys()) dateSet.add(d);
+        for (const d of nikkeiHistory.keys()) dateSet.add(d);
+        for (const d of dowHistory.keys()) dateSet.add(d);
+        const allDates = Array.from(dateSet).sort();
 
         // Calculate historical portfolio values
         const lastKnownPrice = new Map<string, number>();
         const history: { date: string; value: number; nikkei?: number; dow?: number }[] = [];
         let lastRate = exchangeRates.length > 0 ? exchangeRates[0].usdJpy : 150;
-
-        // Fetch index histories
-        const nikkeiHistory = await fetchIndexHistory('^N225', Math.max(days, 7));
-        const dowHistory = await fetchIndexHistory('^DJI', Math.max(days, 7));
         
         let lastNikkei = 0;
         let lastDow = 0;
 
         for (const date of allDates) {
-            const dayPrices = priceByDateSymbol.get(date)!;
+            const dayPrices = priceByDateSymbol.get(date) || new Map<string, number>();
+            
+            // 1. Prioritize Google Sheets recorded prices
             for (const [symbol, price] of dayPrices) {
                 lastKnownPrice.set(symbol, price);
             }
-            const rate = rateByDate.get(date) || lastRate;
-            lastRate = rate;
+
+            // 2. Fallback to Yahoo Finance historical prices for stocks
+            for (const h of stockHoldings) {
+                if (!dayPrices.has(h.symbol) && stockHistories.get(h.symbol)?.has(date)) {
+                    lastKnownPrice.set(h.symbol, stockHistories.get(h.symbol)!.get(date)!);
+                }
+            }
+
+            // 3. Determine exchange rate (Sheets -> Yahoo -> Previous known)
+            let rate = rateByDate.get(date);
+            if (rate === undefined && usdjpyHistory.has(date)) {
+                rate = usdjpyHistory.get(date)!;
+            }
+            if (rate !== undefined) lastRate = rate;
+            else rate = lastRate;
 
             // Update indices if available for this date
             if (nikkeiHistory.has(date)) lastNikkei = Math.round(nikkeiHistory.get(date)!);

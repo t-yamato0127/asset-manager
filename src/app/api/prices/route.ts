@@ -1,6 +1,7 @@
 // API route for fetching stock prices
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchStockPriceV8, fetchMultipleStockPrices } from '@/lib/stockApi';
+import { savePriceData } from '@/lib/googleSheets';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -40,5 +41,23 @@ export async function GET(request: NextRequest) {
             { error: 'Failed to fetch prices' },
             { status: 500 }
         );
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { symbol, price, currency, date } = body;
+
+        if (!symbol || price === undefined || !currency || !date) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        await savePriceData(symbol, Number(price), currency as 'JPY' | 'USD', date);
+        
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Error saving manual price:', error);
+        return NextResponse.json({ error: 'Failed to save price' }, { status: 500 });
     }
 }

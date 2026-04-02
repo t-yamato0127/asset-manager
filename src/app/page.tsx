@@ -175,6 +175,24 @@ export default function Dashboard() {
     setTxSuccess(false);
   };
 
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [priceSubmitting, setPriceSubmitting] = useState(false);
+  const [priceSuccess, setPriceSuccess] = useState(false);
+  const [priceForm, setPriceForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    symbol: '',
+    price: '',
+    currency: 'JPY' as 'JPY' | 'USD',
+  });
+
+  const resetPriceForm = () => {
+    setPriceForm({
+      date: new Date().toISOString().split('T')[0],
+      symbol: '', price: '', currency: 'JPY'
+    });
+    setPriceSuccess(false);
+  };
+
   const handleTxSubmit = async () => {
     setTxSubmitting(true);
     try {
@@ -198,6 +216,31 @@ export default function Dashboard() {
       alert('取引の登録に失敗しました');
     } finally {
       setTxSubmitting(false);
+    }
+  };
+
+  const handlePriceSubmit = async () => {
+    setPriceSubmitting(true);
+    try {
+      const res = await fetch('/api/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(priceForm),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setPriceSuccess(true);
+      // Refresh portfolio graph
+      const historyRes = await fetch('/api/portfolio/history?days=365');
+      const historyData = await historyRes.json();
+      if (historyData.history && historyData.history.length > 0) {
+        setAllHistory(historyData.history);
+      }
+      setTimeout(() => { setShowPriceModal(false); resetPriceForm(); }, 1200);
+    } catch (e) {
+      console.error('Error submitting price:', e);
+      alert('価格の登録に失敗しました');
+    } finally {
+      setPriceSubmitting(false);
     }
   };
 
@@ -657,6 +700,7 @@ export default function Dashboard() {
           <button onClick={downloadTransactionsCSV} className={styles.downloadBtn}>
             📥 CSVダウンロード
           </button>
+          <button className={styles.addButton} onClick={() => { resetPriceForm(); setShowPriceModal(true); }}>📝 価格履歴を手動登録</button>
           <button className={styles.addButton} onClick={() => { resetForm(); setShowModal(true); }}>＋ 取引を登録</button>
         </div>
       </div>
@@ -854,6 +898,62 @@ export default function Dashboard() {
                   onClick={handleTxSubmit}
                 >
                   {txSubmitting ? '登録中...' : `${txForm.type === 'buy' ? '購入' : '売却'}を登録`}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Manual Price Registration Modal */}
+      {showPriceModal && (
+        <div className={styles.modalOverlay} onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>📝 価格履歴を手動登録</h3>
+              <button className={styles.modalClose} onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>×</button>
+            </div>
+
+            {priceSuccess ? (
+              <div className={styles.successMessage}>✅ 価格を登録しました。グラフに反映されます！</div>
+            ) : (
+              <>
+                <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  投資信託などの過去の基準価額を手動で追加することで、過去の資産推移グラフをより正確にすることができます。
+                </p>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label className={styles.formLabel}>日付</label>
+                    <input type="date" className={styles.formInput} value={priceForm.date}
+                      onChange={e => setPriceForm(f => ({ ...f, date: e.target.value }))} />
+                  </div>
+                  
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>銘柄コード / ティッカー</label>
+                    <input type="text" className={styles.formInput} placeholder="例: eMAXIS Slim 全世界株式" value={priceForm.symbol}
+                      onChange={e => setPriceForm(f => ({ ...f, symbol: e.target.value }))} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>価格 (基準価額)</label>
+                    <input type="number" className={styles.formInput} placeholder="例: 21234" value={priceForm.price}
+                      onChange={e => setPriceForm(f => ({ ...f, price: e.target.value }))} />
+                  </div>
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label className={styles.formLabel}>通貨</label>
+                    <select className={styles.formSelect} value={priceForm.currency}
+                      onChange={e => setPriceForm(f => ({ ...f, currency: e.target.value as 'JPY' | 'USD' }))}>
+                      <option value="JPY">JPY (円)</option>
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  className={styles.submitButton}
+                  disabled={priceSubmitting || !priceForm.symbol || !priceForm.price}
+                  onClick={handlePriceSubmit}
+                >
+                  {priceSubmitting ? '登録中...' : '価格を登録'}
                 </button>
               </>
             )}
