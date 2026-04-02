@@ -141,7 +141,7 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<CategorySummary[]>(SAMPLE_CATEGORIES);
   const [holdings, setHoldings] = useState(SAMPLE_HOLDINGS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [allHistory, setAllHistory] = useState<{ date: string; value: number }[]>([]);
+  const [allHistory, setAllHistory] = useState<ChartDataPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
   const [usdJpyRate, setUsdJpyRate] = useState(150.5);
@@ -319,7 +319,7 @@ export default function Dashboard() {
       const label = daysBack <= 90
         ? `${d.getMonth() + 1}/${d.getDate()}`
         : `${String(d.getFullYear()).slice(2)}/${d.getMonth() + 1}`;
-      return { date: label, value: h.value };
+      return { date: label, value: h.value, nikkei: h.nikkei, dow: h.dow };
     });
   })();
 
