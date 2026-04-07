@@ -16,6 +16,8 @@
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/google-spreadsheet": "^3.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

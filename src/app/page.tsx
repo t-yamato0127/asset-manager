@@ -814,11 +814,11 @@ export default function Dashboard() {
                 <div className={styles.typeToggle}>
                   <button
                     className={txForm.type === 'buy' ? styles.typeToggleBuy : styles.typeToggleBtn}
-                    onClick={() => setTxForm(f => ({ ...f, type: 'buy' }))}
+                    onClick={() => setTxForm(f => ({ ...f, type: 'buy', symbol: '', name: '' }))}
                   >🔵 購入</button>
                   <button
                     className={txForm.type === 'sell' ? styles.typeToggleSell : styles.typeToggleBtn}
-                    onClick={() => setTxForm(f => ({ ...f, type: 'sell' }))}
+                    onClick={() => setTxForm(f => ({ ...f, type: 'sell', symbol: '', name: '' }))}
                   >🔴 売却</button>
                 </div>
 
@@ -837,16 +837,47 @@ export default function Dashboard() {
                     </select>
                   </div>
 
-                  <div className={styles.formGroup}>
-                    <label className={styles.formLabel}>銘柄コード</label>
-                    <input type="text" className={styles.formInput} placeholder="例: 7203.T" value={txForm.symbol}
-                      onChange={e => setTxForm(f => ({ ...f, symbol: e.target.value }))} />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label className={styles.formLabel}>銘柄名</label>
-                    <input type="text" className={styles.formInput} placeholder="例: トヨタ自動車" value={txForm.name}
-                      onChange={e => setTxForm(f => ({ ...f, name: e.target.value }))} />
-                  </div>
+                  {txForm.type === 'sell' ? (
+                    <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                      <label className={styles.formLabel}>売却銘柄</label>
+                      <select className={styles.formSelect} value={txForm.symbol}
+                        onChange={e => {
+                          const selectedHolding = holdings.find(h => h.symbol === e.target.value);
+                          if (selectedHolding) {
+                            setTxForm(f => ({
+                              ...f,
+                              symbol: selectedHolding.symbol,
+                              name: selectedHolding.name,
+                              currency: selectedHolding.currency as 'JPY' | 'USD',
+                              accountType: selectedHolding.accountType,
+                              broker: selectedHolding.broker || 'SBI証券'
+                            }));
+                          } else {
+                            setTxForm(f => ({ ...f, symbol: '', name: '' }));
+                          }
+                        }}>
+                        <option value="">保有銘柄から選択してください</option>
+                        {holdings.map((h, idx) => (
+                          <option key={`${h.id}-${idx}`} value={h.symbol}>
+                            {h.name} ({h.symbol}) - 保有数: {h.quantity}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={styles.formGroup}>
+                        <label className={styles.formLabel}>銘柄コード</label>
+                        <input type="text" className={styles.formInput} placeholder="例: 7203.T" value={txForm.symbol}
+                          onChange={e => setTxForm(f => ({ ...f, symbol: e.target.value }))} />
+                      </div>
+                      <div className={styles.formGroup}>
+                        <label className={styles.formLabel}>銘柄名</label>
+                        <input type="text" className={styles.formInput} placeholder="例: トヨタ自動車" value={txForm.name}
+                          onChange={e => setTxForm(f => ({ ...f, name: e.target.value }))} />
+                      </div>
+                    </>
+                  )}
 
                   <div className={styles.formGroup}>
                     <label className={styles.formLabel}>数量</label>
