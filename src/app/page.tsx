@@ -323,6 +323,101 @@ export default function Dashboard() {
     });
   })();
 
+  // Gamification & Heatmap computation
+  const { levelInfo, heatmapWeeks } = (() => {
+    // Calculate total realized PL from all sell transactions
+    const totalEXP = Math.max(0, transactions
+      .filter(t => t.type === 'sell')
+      .reduce((sum, t) => sum + (t.realizedPL || 0), 0)
+    );
+
+    // Levels logic
+    const LEVELS = [
+      { maxExp: 10000, title: "初心者トレーダー" },
+      { maxExp: 50000, title: "見習い投資家" },
+      { maxExp: 200000, title: "一人前投資家" },
+      { maxExp: 1000000, title: "プロトレーダー" },
+      { maxExp: 5000000, title: "資産形成マスター" },
+      { maxExp: Infinity, title: "伝説の相場師" },
+    ];
+
+    let currentLevel = 1;
+    let prevLimit = 0;
+    let nextLimit = LEVELS[0].maxExp;
+    let rankTitle = LEVELS[0].title;
+
+    for (let i = 0; i < LEVELS.length; i++) {
+        if (totalEXP < LEVELS[i].maxExp) {
+            currentLevel = i + 1;
+            rankTitle = LEVELS[i].title;
+            prevLimit = i === 0 ? 0 : LEVELS[i - 1].maxExp;
+            nextLimit = LEVELS[i].maxExp;
+            break;
+        }
+        if (i === LEVELS.length - 1) {
+            currentLevel = 6;
+            rankTitle = LEVELS[i].title;
+            prevLimit = LEVELS[i - 1].maxExp;
+            nextLimit = Infinity;
+        }
+    }
+
+    const progressScore = currentLevel === 6 ? 100 : Math.min(100, Math.max(0, ((totalEXP - prevLimit) / (nextLimit - prevLimit)) * 100));
+
+    // Daily PL map for the calendar
+    const dailyPLMap: Record<string, number> = {};
+    transactions.forEach(t => {
+      if (t.type === 'sell') {
+        const dateStr = t.date.split('T')[0];
+        dailyPLMap[dateStr] = (dailyPLMap[dateStr] || 0) + (t.realizedPL || 0);
+      }
+    });
+
+    // Generate 24 weeks of data (cols) * 7 days (rows)
+    const WEEKS = 24;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const currentDayOfWeek = today.getDay(); // 0 is Sunday
+    
+    const weeks = [];
+    const startDate = new Date(today);
+    // Align so the last day in the grid is aligned with the current day of week.
+    startDate.setDate(today.getDate() - (WEEKS * 7) + (7 - currentDayOfWeek));
+
+    let currentDate = new Date(startDate);
+    for (let w = 0; w < WEEKS; w++) {
+      const daysInWeek = [];
+      for (let d = 0; d < 7; d++) {
+        if (currentDate > today) {
+          daysInWeek.push(null); // future days
+        } else {
+          const y = currentDate.getFullYear();
+          const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const day = String(currentDate.getDate()).padStart(2, '0');
+          const dateStr = `${y}-${m}-${day}`;
+          
+          daysInWeek.push({
+            date: dateStr,
+            pl: dailyPLMap[dateStr] || 0
+          });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      weeks.push({ days: daysInWeek });
+    }
+
+    return { 
+      levelInfo: {
+        level: currentLevel,
+        title: rankTitle,
+        currentEXP: totalEXP,
+        nextLevelEXP: nextLimit,
+        progressScore
+      }, 
+      heatmapWeeks: weeks 
+    };
+  })();
+
   const filteredHoldings = holdings.filter(h => {
     if (tableTab === 'all') return true;
     if (tableTab === 'domestic') return h.category === 'domestic_stock';
@@ -693,6 +788,81 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* Gamification & Heatmap Section */}
+      <div className={styles.gamificationPanel}>
+        <div className={styles.levelHeader}>
+          <div className={styles.levelBadge}>
+            <h3>レベル {levelInfo.level}</h3>
+            <span className={styles.title}>{levelInfo.title}</span>
+          </div>
+          <div className={styles.levelExp}>
+            {levelInfo.level < 6 
+              ? `EXP: ${levelInfo.currentEXP.toLocaleString()} / ${levelInfo.nextLevelEXP.toLocaleString()}`
+              : `EXP: ${levelInfo.currentEXP.toLocaleString()}`}
+          </div>
+        </div>
+        
+        {levelInfo.level < 6 && (
+          <div className={styles.progressBarContainer}>
+            <div 
+              className={styles.progressBarFill} 
+              style={{ width: `${levelInfo.progressScore}%` }}
+              title={`次のレベルまであと ${(levelInfo.nextLevelEXP - levelInfo.currentEXP).toLocaleString()} EXP`}
+            ></div>
+          </div>
+        )}
+
+        <div className={styles.heatmapContainer}>
+          <div className={styles.heatmapTitle}>
+            <span>確定損益カレンダー (過去24週間)</span>
+            <div className={styles.heatmapLegend}>
+              <span>Loss</span>
+              <div className={`${styles.heatmapCell} ${styles.loss4}`}></div>
+              <div className={`${styles.heatmapCell} ${styles.loss2}`}></div>
+              <div className={styles.heatmapCell}></div>
+              <div className={`${styles.heatmapCell} ${styles.profit2}`}></div>
+              <div className={`${styles.heatmapCell} ${styles.profit4}`}></div>
+              <span>Profit</span>
+            </div>
+          </div>
+          <div className={styles.heatmapGridWrapper}>
+            {heatmapWeeks.map((week, wIdx) => (
+              <div key={wIdx} className={styles.heatmapWeek}>
+                {week.days.map((day, dIdx) => {
+                  if (!day) return <div key={dIdx} style={{ width: 14, height: 14 }}></div>;
+                  
+                  const isProfit = day.pl > 0;
+                  const isLoss = day.pl < 0;
+                  const absPL = Math.abs(day.pl);
+                  
+                  let colorClass = '';
+                  if (isProfit) {
+                    if (absPL > 50000) colorClass = styles.profit4;
+                    else if (absPL > 10000) colorClass = styles.profit3;
+                    else if (absPL > 2000) colorClass = styles.profit2;
+                    else colorClass = styles.profit1;
+                  } else if (isLoss) {
+                    if (absPL > 50000) colorClass = styles.loss4;
+                    else if (absPL > 10000) colorClass = styles.loss3;
+                    else if (absPL > 2000) colorClass = styles.loss2;
+                    else colorClass = styles.loss1;
+                  }
+
+                  return (
+                    <div 
+                      key={day.date} 
+                      className={`${styles.heatmapCell} ${colorClass}`}
+                      title={`${day.date}: ${day.pl > 0 ? '+' : ''}${day.pl.toLocaleString()}円`}
+                    ></div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Transaction History Section */}
       <div className={styles.sectionHeader} style={{ marginTop: '2rem' }}>
         <h2 className={styles.sectionTitle}>📅 今年の取引履歴 ({new Date().getFullYear()}年)</h2>
