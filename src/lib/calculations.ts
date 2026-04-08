@@ -81,12 +81,26 @@ export function calculateYearRealizedPL(
         t => new Date(t.date).getFullYear() === year && t.type === 'sell'
     );
 
-    return yearTransactions.reduce((total, t) => {
+    let nisaPL = 0;
+    let taxablePL = 0;
+
+    yearTransactions.forEach(t => {
         const plJPY = t.currency === 'USD'
             ? convertUsdToJpy(t.realizedPL || 0, usdJpyRate)
             : (t.realizedPL || 0);
-        return total + plJPY;
-    }, 0);
+            
+        if (t.accountType?.toLowerCase() === 'nisa') {
+            nisaPL += plJPY;
+        } else {
+            taxablePL += plJPY;
+        }
+    });
+
+    if (taxablePL > 0) {
+        taxablePL = taxablePL * (1 - 0.20315);
+    }
+
+    return nisaPL + taxablePL;
 }
 
 // Calculate year's dividends

@@ -1,6 +1,6 @@
 // API route for fetching and creating transactions
 import { NextRequest, NextResponse } from 'next/server';
-import { getTransactions, addTransaction } from '@/lib/googleSheets';
+import { getTransactions, addTransaction, updateHoldingForTransaction } from '@/lib/googleSheets';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -22,10 +22,25 @@ export async function GET(request: NextRequest) {
         }
 
         const sellTransactions = transactions.filter(t => t.type === 'sell');
-        const totalRealizedPL = sellTransactions.reduce(
-            (sum, t) => sum + (t.realizedPL || 0),
-            0
-        );
+        
+        let nisaPL = 0;
+        let taxablePL = 0;
+        
+        sellTransactions.forEach(t => {
+            const anyT: any = t;
+            const pl = t.realizedPL || 0;
+            if (anyT.accountType?.toLowerCase() === 'nisa') {
+                nisaPL += pl;
+            } else {
+                taxablePL += pl;
+            }
+        });
+
+        if (taxablePL > 0) {
+            taxablePL = taxablePL * (1 - 0.20315);
+        }
+        
+        const totalRealizedPL = nisaPL + taxablePL;
         const totalFees = transactions.reduce((sum, t) => sum + t.fees, 0);
 
         return NextResponse.json({
@@ -80,6 +95,14 @@ export async function POST(request: NextRequest) {
             accountType: body.accountType || '',
             broker: body.broker || '',
         });
+
+        await updateHoldingForTransaction(
+            symbol, 
+            type as 'buy' | 'sell', 
+            Number(quantity), 
+            body.accountType, 
+            body.broker
+        );
 
         return NextResponse.json({
             success: true,

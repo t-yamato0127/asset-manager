@@ -10,6 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import styles from './page.module.css';
 import type {
@@ -327,15 +330,29 @@ export default function Dashboard() {
   const { levelInfo, monthlyCalendars, stats } = (() => {
     // Daily PL map for the calendar & stats
     const dailyPLMap: Record<string, number> = {};
+    let nisaEXP = 0;
+    let taxableEXP = 0;
+
     transactions.forEach(t => {
       if (t.type === 'sell') {
         const dateStr = t.date.split('T')[0];
-        dailyPLMap[dateStr] = (dailyPLMap[dateStr] || 0) + (t.realizedPL || 0);
+        const pl = t.realizedPL || 0;
+        dailyPLMap[dateStr] = (dailyPLMap[dateStr] || 0) + pl;
+
+        if (t.accountType?.toLowerCase() === 'nisa') {
+            nisaEXP += pl;
+        } else {
+            taxableEXP += pl;
+        }
       }
     });
 
-    // Calculate EXP (Total Realized PL)
-    const totalEXP = Math.max(0, Object.values(dailyPLMap).reduce((sum, pl) => sum + pl, 0));
+    if (taxableEXP > 0) {
+        taxableEXP = taxableEXP * (1 - 0.20315);
+    }
+
+    // Calculate EXP (Total Realized PL after tax)
+    const totalEXP = Math.max(0, nisaEXP + taxableEXP);
 
     // Stats: Win Rate & Streak
     const tradedDates = Object.keys(dailyPLMap).sort();
@@ -721,7 +738,39 @@ export default function Dashboard() {
         {/* Allocation */}
         <div className={styles.allocationSection}>
           <h2 className={styles.allocationTitle}>📊 資産配分</h2>
-          <div className={styles.allocationList}>
+          
+          <div style={{ width: '100%', height: '220px', marginTop: '0.5rem' }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={categories}
+                  dataKey="value"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  stroke="none"
+                >
+                  {categories.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any) => formatCurrency(Number(value))}
+                  contentStyle={{
+                    background: 'rgba(26, 26, 37, 0.95)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: '#f8fafc',
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className={styles.allocationList} style={{ marginTop: '0.5rem' }}>
             {categories.map(cat => (
               <div key={cat.category} className={styles.allocationItem}>
                 <div className={styles.allocationLabel}>

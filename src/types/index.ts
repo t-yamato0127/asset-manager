@@ -55,6 +55,8 @@ export interface Transaction {
     fees: number;
     realizedPL?: number; // Only for sell transactions
     currency: Currency;
+    accountType?: AccountType;
+    broker?: string;
 }
 
 export interface ExchangeRate {

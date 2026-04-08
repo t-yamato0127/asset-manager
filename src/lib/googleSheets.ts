@@ -154,6 +154,8 @@ export async function getTransactions() {
     const feesIdx = colIndex('fees');
     const plIdx = colIndex('realizedpl');
     const curIdx = colIndex('currency');
+    const acctIdx = colIndex('accounttype');
+    const brokerIdx = colIndex('broker');
 
     return rows.map((row, i) => ({
         id: `tx-${i}`,
@@ -166,6 +168,8 @@ export async function getTransactions() {
         fees: feesIdx >= 0 ? (parseFloat(row[feesIdx]) || 0) : 0,
         realizedPL: plIdx >= 0 ? (parseFloat(row[plIdx]) || 0) : 0,
         currency: (curIdx >= 0 ? (row[curIdx] || 'JPY') : 'JPY') as 'JPY' | 'USD',
+        accountType: (acctIdx >= 0 && row[acctIdx] ? row[acctIdx] : 'specific') as 'nisa' | 'specific' | 'general',
+        broker: brokerIdx >= 0 ? (row[brokerIdx] || '') : '',
     }));
 }
 
@@ -328,6 +332,84 @@ export async function addTransaction(tx: {
         tx.broker || '',
     ];
     await appendToSheet(SHEETS.TRANSACTIONS, [row]);
+}
+
+// Update Holding quantity based on a transaction
+// If sold completely, the row is removed.
+export async function updateHoldingForTransaction(
+    symbol: string,
+    type: 'buy' | 'sell',
+    qty: number,
+    accountType?: string,
+    broker?: string
+) {
+    const data = await readSheet(SHEETS.HOLDINGS);
+    if (data.length <= 1) return;
+
+    const header = data[0];
+    const colIndex = (name: string) => header.findIndex(h => h.toLowerCase().trim() === name.toLowerCase());
+    
+    const symIdx = colIndex('symbol');
+    const qtyIdx = colIndex('quantity');
+    const acctIdx = colIndex('accounttype');
+    const brokerIdx = colIndex('broker');
+
+    if (symIdx < 0 || qtyIdx < 0) return;
+
+    let updated = false;
+    const newRows = [header];
+    let matched = false;
+
+    for (let i = 1; i < data.length; i++) {
+        const row = [...data[i]]; 
+        while (row.length < header.length) {
+            row.push('');
+        }
+
+        const rowSymbol = String(row[symIdx]).trim();
+        const rowAcct = acctIdx >= 0 ? String(row[acctIdx] || '').trim().toLowerCase() : 'specific';
+        const rowBroker = brokerIdx >= 0 ? String(row[brokerIdx] || '').trim() : '';
+
+        const targetAcct = accountType ? accountType.toLowerCase() : '';
+
+        // Match symbol and optimally accountType and broker if they exist
+        const isMatch = rowSymbol === symbol && 
+                        (!targetAcct || rowAcct === targetAcct || rowAcct === '') &&
+                        (!broker || rowBroker === broker || rowBroker === '');
+
+        if (isMatch && !matched) {
+            matched = true;
+            let currentQty = parseFloat(String(row[qtyIdx])) || 0;
+            if (type === 'buy') {
+                currentQty += qty;
+            } else if (type === 'sell') {
+                currentQty -= qty;
+            }
+            row[qtyIdx] = String(currentQty);
+            updated = true;
+
+            // Only keep if quantity > 0
+            if (currentQty > 0) {
+                newRows.push(row);
+            }
+        } else {
+            newRows.push(row);
+        }
+    }
+
+    if (updated) {
+        if (!SPREADSHEET_ID) return;
+        const sheets = getSheets();
+        
+        // Clear the HOLDINGS sheet
+        await sheets.spreadsheets.values.clear({
+            spreadsheetId: SPREADSHEET_ID,
+            range: SHEETS.HOLDINGS,
+        });
+
+        // Rewrite with updated rows
+        await writeSheet(SHEETS.HOLDINGS, newRows);
+    }
 }
 
 export { SHEETS };
