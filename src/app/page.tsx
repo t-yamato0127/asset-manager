@@ -752,13 +752,16 @@ export default function Dashboard() {
                   outerRadius={90}
                   paddingAngle={2}
                   stroke="none"
+                  activeShape={false}
+                  style={{ outline: 'none' }}
                 >
                   {categories.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none' }} />
                   ))}
                 </Pie>
                 <Tooltip 
                   formatter={(value: any) => formatCurrency(Number(value))}
+                  itemStyle={{ color: '#f8fafc' }}
                   contentStyle={{
                     background: 'rgba(26, 26, 37, 0.95)',
                     border: '1px solid rgba(255,255,255,0.1)',
