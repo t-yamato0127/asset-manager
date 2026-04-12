@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -148,6 +148,7 @@ export default function Dashboard() {
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
   const [usdJpyRate, setUsdJpyRate] = useState(150.5);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Transaction registration modal
   const [showModal, setShowModal] = useState(false);
@@ -213,6 +214,7 @@ export default function Dashboard() {
       if (data.transactions) setTransactions(data.transactions);
       if (data.summary) setSummary(data.summary);
       if (data.categories?.length > 0) setCategories(data.categories);
+      setLastUpdated(new Date());
       setTimeout(() => { setShowModal(false); resetForm(); }, 1200);
     } catch (e) {
       console.error('Error submitting transaction:', e);
@@ -275,9 +277,11 @@ export default function Dashboard() {
         }
 
         console.log(`Portfolio loaded: source=${data.source}, priceSource=${data.priceSource}, exchangeRate=${data.exchangeRate}`);
+        setLastUpdated(new Date());
       } catch (error) {
         console.error('Error fetching portfolio:', error);
         // Keep sample data on error
+        setLastUpdated(new Date());
       } finally {
         setIsLoading(false);
       }
@@ -303,7 +307,7 @@ export default function Dashboard() {
   }, []);
 
   // Compute filtered chart data based on selected period
-  const chartData: ChartDataPoint[] = (() => {
+  const chartData: ChartDataPoint[] = useMemo(() => {
     if (allHistory.length === 0) return [];
     const now = new Date();
     let daysBack = 30;
@@ -324,10 +328,10 @@ export default function Dashboard() {
         : `${String(d.getFullYear()).slice(2)}/${d.getMonth() + 1}`;
       return { date: label, value: h.value, nikkei: h.nikkei, dow: h.dow };
     });
-  })();
+  }, [allHistory, chartPeriod]);
 
   // Gamification & Monthly Calendar computation
-  const { levelInfo, monthlyCalendars, stats } = (() => {
+  const { levelInfo, monthlyCalendars, stats } = useMemo(() => {
     // Daily PL map for the calendar & stats
     const dailyPLMap: Record<string, number> = {};
     let nisaEXP = 0;
@@ -472,19 +476,19 @@ export default function Dashboard() {
       },
       monthlyCalendars: mCals 
     };
-  })();
+  }, [transactions]);
 
-  const filteredHoldings = holdings.filter(h => {
+  const filteredHoldings = useMemo(() => holdings.filter(h => {
     if (tableTab === 'all') return true;
     if (tableTab === 'domestic') return h.category === 'domestic_stock';
     if (tableTab === 'us') return h.category === 'us_stock';
     if (tableTab === 'fund') return h.category === 'mutual_fund';
     return true;
-  });
+  }), [holdings, tableTab]);
 
-  const formatDate = () => {
-    const now = new Date();
-    return now.toLocaleString('ja-JP', {
+  const formatDate = (date: Date | null) => {
+    if (!date) return '';
+    return date.toLocaleString('ja-JP', {
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',
@@ -584,7 +588,7 @@ export default function Dashboard() {
         </div>
         <div className={styles.updateTime}>
           <span className={styles.updateDot}></span>
-          <span>最終更新: {formatDate()}</span>
+          <span>最終更新: {formatDate(lastUpdated)}</span>
         </div>
       </header>
 
