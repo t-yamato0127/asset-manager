@@ -1,11 +1,12 @@
 // Unified portfolio API - combines holdings, real-time prices, exchange rates, and calculations
 import { NextResponse } from 'next/server';
-import { getHoldings, getTransactions, getLatestPrices } from '@/lib/googleSheets';
+import { getHoldings, getTransactions, getLatestPrices, getDividends, getOtherAssets } from '@/lib/googleSheets';
 import { fetchMultipleStockPrices, fetchMutualFundNAV } from '@/lib/stockApi';
 import { fetchUsdJpyRate } from '@/lib/exchangeRate';
 import {
     calculateHoldingsValue,
     generateCategorySummary,
+    generateCurrencySummary,
     generatePortfolioSummary,
 } from '@/lib/calculations';
 import type { Holding, Transaction } from '@/types';
@@ -34,9 +35,11 @@ function normalizeSymbolForPriceLookup(symbol: string): string {
 export async function GET() {
     try {
         // 1. Fetch holdings and transactions from Google Sheets
-        const [rawHoldings, rawTransactions] = await Promise.all([
+        const [rawHoldings, rawTransactions, dividends, otherAssets] = await Promise.all([
             getHoldings(),
             getTransactions(),
+            getDividends(),
+            getOtherAssets(),
         ]);
 
         if (!rawHoldings || rawHoldings.length === 0) {
@@ -195,7 +198,15 @@ export async function GET() {
         // 5. Generate category summary
         const categories = generateCategorySummary(
             holdings,
-            [], // No other assets for now
+            otherAssets,
+            prices,
+            usdJpyRate
+        );
+
+        // 5.b Generate currency summary
+        const currencySummaries = generateCurrencySummary(
+            holdings,
+            otherAssets,
             prices,
             usdJpyRate
         );
@@ -213,9 +224,9 @@ export async function GET() {
         // 7. Generate portfolio summary
         const summary = generatePortfolioSummary(
             holdings,
-            [], // No other assets
-            transactions, // Pass transactions
-            [], // No dividends yet
+            otherAssets,
+            transactions,
+            dividends,
             prices,
             previousPrices,
             usdJpyRate
@@ -246,8 +257,11 @@ export async function GET() {
         return NextResponse.json({
             holdings: holdingsWithPrices,
             transactions,
+            dividends,
+            otherAssets,
             summary,
             categories,
+            currencySummaries,
             exchangeRate: usdJpyRate,
             exchangeRateSource,
             priceSource,

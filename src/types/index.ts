@@ -110,4 +110,13 @@ export interface ChartDataPoint {
     label?: string;
     nikkei?: number;
     dow?: number;
+    sp500?: number;
+}
+
+export interface CurrencySummary {
+    currency: Currency;
+    label: string;
+    value: number;
+    percentage: number;
+    color: string;
 }

@@ -6,7 +6,8 @@ import type {
     Dividend,
     OtherAsset,
     PortfolioSummary,
-    CategorySummary
+    CategorySummary,
+    CurrencySummary
 } from '@/types';
 import { convertUsdToJpy } from './exchangeRate';
 
@@ -171,6 +172,52 @@ export function generateCategorySummary(
     });
 
     // Sort by value descending
+    return summaries.sort((a, b) => b.value - a.value);
+}
+
+// Generate currency summary for pie chart
+export function generateCurrencySummary(
+    holdings: Holding[],
+    otherAssets: OtherAsset[],
+    prices: Map<string, { price: number; currency: string }>,
+    usdJpyRate: number
+): CurrencySummary[] {
+    const currencyTotals = new Map<string, number>();
+    currencyTotals.set('JPY', 0);
+    currencyTotals.set('USD', 0);
+
+    holdings.forEach(holding => {
+        const priceData = prices.get(holding.symbol);
+        const currentPrice = priceData?.price || holding.avgCost;
+        const totalValue = currentPrice * holding.quantity;
+        const valueJPY = holding.currency === 'USD'
+            ? convertUsdToJpy(totalValue, usdJpyRate)
+            : totalValue;
+
+        currencyTotals.set(holding.currency, (currencyTotals.get(holding.currency) || 0) + valueJPY);
+    });
+
+    otherAssets.forEach(asset => {
+        const valueJPY = asset.currency === 'USD'
+            ? convertUsdToJpy(asset.value, usdJpyRate)
+            : asset.value;
+
+        currencyTotals.set(asset.currency, (currencyTotals.get(asset.currency) || 0) + valueJPY);
+    });
+
+    const grandTotal = Array.from(currencyTotals.values()).reduce((a, b) => a + b, 0);
+
+    const summaries: CurrencySummary[] = [];
+    currencyTotals.forEach((value, currency) => {
+        summaries.push({
+            currency: currency as 'JPY' | 'USD',
+            label: currency === 'JPY' ? '円 (JPY)' : '米ドル (USD)',
+            value,
+            percentage: grandTotal > 0 ? (value / grandTotal) * 100 : 0,
+            color: currency === 'JPY' ? '#ef4444' : '#3b82f6',
+        });
+    });
+
     return summaries.sort((a, b) => b.value - a.value);
 }
 

@@ -1,5 +1,10 @@
 'use client';
 
+import DividendChart from '@/components/Dashboard/DividendChart';
+import GoalSimulation from '@/components/Dashboard/GoalSimulation';
+import CurrencyAllocation from '@/components/Dashboard/CurrencyAllocation';
+import BenchmarkComparison from '@/components/Dashboard/BenchmarkComparison';
+
 import { useState, useEffect, useMemo } from 'react';
 import {
   LineChart,
@@ -20,13 +25,19 @@ import type {
   PortfolioSummary,
   CategorySummary,
   ChartDataPoint,
-  Transaction
+  Transaction,
+  Dividend,
+  OtherAsset,
+  CurrencySummary
 } from '@/types';
 import { formatCurrency, formatPercent, formatChange } from '@/lib/exchangeRate';
 
 interface PortfolioData {
   holdings: Holding[];
   transactions: Transaction[];
+  dividends?: Dividend[];
+  otherAssets?: OtherAsset[];
+  currencySummaries?: CurrencySummary[];
   summary: PortfolioSummary;
   categories: CategorySummary[];
   exchangeRate: number;
@@ -144,6 +155,8 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<CategorySummary[]>(SAMPLE_CATEGORIES);
   const [holdings, setHoldings] = useState(SAMPLE_HOLDINGS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dividends, setDividends] = useState<Dividend[]>([]);
+  const [currencySummaries, setCurrencySummaries] = useState<CurrencySummary[]>([]);
   const [allHistory, setAllHistory] = useState<ChartDataPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
   const [tableTab, setTableTab] = useState<TableTab>('all');
@@ -214,6 +227,8 @@ export default function Dashboard() {
       if (data.transactions) setTransactions(data.transactions);
       if (data.summary) setSummary(data.summary);
       if (data.categories?.length > 0) setCategories(data.categories);
+      if (data.dividends) setDividends(data.dividends);
+      if (data.currencySummaries) setCurrencySummaries(data.currencySummaries);
       setLastUpdated(new Date());
       setTimeout(() => { setShowModal(false); resetForm(); }, 1200);
     } catch (e) {
@@ -270,6 +285,14 @@ export default function Dashboard() {
 
         if (data.categories && data.categories.length > 0) {
           setCategories(data.categories);
+        }
+
+        if (data.dividends) {
+          setDividends(data.dividends);
+        }
+
+        if (data.currencySummaries) {
+          setCurrencySummaries(data.currencySummaries);
         }
 
         if (data.exchangeRate) {
@@ -737,11 +760,17 @@ export default function Dashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          {chartData.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              <BenchmarkComparison history={chartData} />
+            </div>
+          )}
         </div>
 
-        {/* Allocation */}
-        <div className={styles.allocationSection}>
-          <h2 className={styles.allocationTitle}>📊 資産配分</h2>
+        {/* Allocations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className={styles.allocationSection}>
+            <h2 className={styles.allocationTitle}>📊 資産配分</h2>
           
           <div style={{ width: '100%', height: '220px', marginTop: '0.5rem' }}>
             <ResponsiveContainer>
@@ -795,10 +824,18 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+        {currencySummaries && currencySummaries.length > 0 && <CurrencyAllocation currencySummaries={currencySummaries} />}
       </div>
+    </div>
 
-      {/* Holdings Table */}
-      <div className={styles.tableSection}>
+    {/* New Simulation & Dividends Section */}
+    <div className={styles.contentGrid} style={{ marginTop: '2rem' }}>
+      <GoalSimulation currentValueJPY={summary.totalValueJPY} />
+      {dividends && dividends.length > 0 && <DividendChart dividends={dividends} usdJpyRate={usdJpyRate} />}
+    </div>
+
+    {/* Holdings Table */}
+    <div className={styles.tableSection} style={{ marginTop: '2rem' }}>
         <div className={styles.tableHeader}>
           <h2 className={styles.tableTitle}>💼 保有銘柄</h2>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
