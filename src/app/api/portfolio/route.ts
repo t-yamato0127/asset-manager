@@ -21,8 +21,8 @@ const FUND_CODE_MAP: Record<string, string> = {
     'capital-ica': '93311181',        // キャピタルICA
     'pictet-gold': '42312199',       // ピクテ・ゴールド(為替ヘッジなし)
     'ifree-fang': '04311181',        // iFreeNEXT FANG+インデックス
-    'emaxis-ac-general': '0331418A', // eMAXIS Slim 全世界株式(オールカントリー)
-    'emaxis-ac-nisa': '0331418A',    // eMAXIS Slim 全世界株式(NISA) - same NAV
+    'emaxis-ac-general': '9I312179', // 楽天・全米株式(楽天・VTI)
+    'emaxis-ac-nisa': '03311187',    // eMAXIS Slim 米国株式(S&P500)
 };
 
 // Normalize symbol for Yahoo Finance API lookups
